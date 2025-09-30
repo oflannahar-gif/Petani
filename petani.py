@@ -24,7 +24,7 @@ from telethon import TelegramClient, events
 from telethon.sessions import StringSession
 
 # ---------------- CONFIG ----------------
-load_dotenv("petani.env")
+load_dotenv("kunci.env")
 API_ID = int(os.getenv("API_ID") or 0)
 API_HASH = os.getenv("API_HASH") or ""
 PHONE = os.getenv("PHONE") or ""
