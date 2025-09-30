@@ -13,7 +13,7 @@ BOT_USERNAME = os.getenv("BOT_USERNAME")  # target bot
 OWNER_ID = int(os.getenv("OWNER_ID"))
 
 # --- Inisialisasi Telethon ---
-client = TelegramClient("session", API_ID, API_HASH)
+client = TelegramClient("Petani_session", API_ID, API_HASH)
 
 # --- Variabel kontrol ---
 running = False
