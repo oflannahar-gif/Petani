@@ -16,10 +16,18 @@ OWNER_ID = int(os.getenv("OWNER_ID"))
 client = TelegramClient("Petani_session", API_ID, API_HASH)
 
 # --- Variabel kontrol ---
-running = False
+running_maling = False
+running_kebun = False
 last_sent = {}  # {kode: timestamp}
+
+# Delay aturan maling
 DELAY_BETWEEN_CODES = 120   # 2 menit
 DELAY_REPEAT_CODE = 3600    # 1 jam
+
+# Delay aturan kebun
+DELAY_AFTER_TANAM = 2       # 2 detik
+DELAY_AFTER_SIRAM = 185     # 3 menit 5 detik
+DELAY_AFTER_PANEN = 2       # 2 detik
 
 
 # --- Baca codes.txt ---
@@ -29,11 +37,11 @@ def load_codes():
     return codes
 
 
-# --- Task pengiriman otomatis ---
-async def auto_send():
-    global running
+# --- Task pengiriman otomatis (Maling) ---
+async def auto_maling():
+    global running_maling
     while True:
-        if running:
+        if running_maling:
             codes = load_codes()
             for code in codes:
                 now = time.time()
@@ -42,39 +50,84 @@ async def auto_send():
                 if now - last_time >= DELAY_REPEAT_CODE:
                     try:
                         await client.send_message(BOT_USERNAME, code)
-                        print(f"[+] Terkirim: {code}")
+                        print(f"[MALING] [+] Terkirim: {code}")
                         last_sent[code] = now
                     except Exception as e:
-                        print(f"[!] Gagal kirim {code}: {e}")
+                        print(f"[MALING] [!] Gagal kirim {code}: {e}")
                     await asyncio.sleep(DELAY_BETWEEN_CODES)
                 else:
-                    # Lewati kode yang belum 1 jam
                     continue
         else:
-            await asyncio.sleep(5)  # kalau stop, tunggu sebentar
+            await asyncio.sleep(5)
+
+
+# --- Task Kebun (Wortel) ---
+async def auto_kebun():
+    global running_kebun
+    while True:
+        if running_kebun:
+            try:
+                # Tanam
+                await client.send_message(BOT_USERNAME, "/tanam_Wortel_25")
+                print("[KEBUN] Tanam Wortel")
+                await asyncio.sleep(DELAY_AFTER_TANAM)
+
+                # Siram
+                await client.send_message(BOT_USERNAME, "/siram")
+                print("[KEBUN] Siram Wortel")
+                await asyncio.sleep(DELAY_AFTER_SIRAM)
+
+                # Panen
+                await client.send_message(BOT_USERNAME, "/ambilPanen")
+                print("[KEBUN] Panen Wortel")
+                await asyncio.sleep(DELAY_AFTER_PANEN)
+
+            except Exception as e:
+                print(f"[KEBUN] [!] Gagal aksi kebun: {e}")
+                await asyncio.sleep(5)
+        else:
+            await asyncio.sleep(5)
 
 
 # --- Handler perintah dari Saved Messages ---
 @client.on(events.NewMessage(chats=OWNER_ID))
 async def handler(event):
-    global running
+    global running_maling, running_kebun
     msg = event.raw_text.lower().strip()
 
-    if msg == "start":
-        running = True
-        await event.reply("✅ Auto-sender DIMULAI")
-        print(">> Auto-sender STARTED")
+    if msg == "start maling":
+        running_maling = True
+        await event.reply("✅ Loop Maling DIMULAI")
+        print(">> Loop maling STARTED")
 
-    elif msg == "stop":
-        running = False
-        await event.reply("⏹ Auto-sender DIHENTIKAN")
-        print(">> Auto-sender STOPPED")
+    elif msg == "stop maling":
+        running_maling = False
+        await event.reply("⏹ Loop Maling DIHENTIKAN")
+        print(">> Loop maling STOPPED")
+
+    elif msg == "start kebun":
+        running_kebun = True
+        await event.reply("✅ Loop Kebun DIMULAI")
+        print(">> Loop kebun STARTED")
+
+    elif msg == "stop kebun":
+        running_kebun = False
+        await event.reply("⏹ Loop Kebun DIHENTIKAN")
+        print(">> Loop kebun STOPPED")
+
+    elif msg == "stop all":
+        running_maling = False
+        running_kebun = False
+        await event.reply("⏹ Semua loop dihentikan")
+        print(">> Semua loop STOPPED")
 
 
 # --- Main ---
 async def main():
-    print(">> Bot siap jalan. Kirim 'start' atau 'stop' di Saved Messages kamu.")
-    asyncio.create_task(auto_send())  # jalankan loop auto_send
+    print(">> Bot siap jalan.")
+    print("Ketik 'start maling' atau 'start kebun' di Saved Messages kamu.")
+    asyncio.create_task(auto_maling())
+    asyncio.create_task(auto_kebun())
     await client.run_until_disconnected()
 
 
