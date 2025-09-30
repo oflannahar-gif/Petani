@@ -36,7 +36,7 @@ def load_codes():
     return codes
 
 # --- Parse EXP dari pesan /status ---
-def parse_exp(text):
+def parse_status_exp(text):
     global exp_now, exp_max
     match = re.search(r"EXP:\s*([\d,]+)/([\d,]+)", text)
     if match:
@@ -44,11 +44,16 @@ def parse_exp(text):
         exp_max = int(match.group(2).replace(",", ""))
         print(f"[STATUS] EXP {exp_now}/{exp_max}")
 
-# --- Tambah EXP dan log ---
-def add_exp(amount, sumber=""):
+# --- Tambah EXP dari pesan EXP+xxx ---
+def parse_gain_exp(text):
     global exp_now, exp_max
-    exp_now += amount
-    print(f">> +{amount} EXP → {exp_now}/{exp_max} {sumber}")
+    match = re.search(r"EXP\+([\d,]+)", text)
+    if match:
+        gain = int(match.group(1).replace(",", ""))
+        exp_now += gain
+        print(f">> +{gain} EXP → {exp_now}/{exp_max}")
+        return gain
+    return 0
 
 # --- Cek EXP & levelup ---
 async def check_levelup():
@@ -93,14 +98,12 @@ async def auto_kebun():
             try:
                 # Tanam
                 await client.send_message(BOT_USERNAME, "/tanam_Wortel_25")
-                add_exp(75, "[KEBUN] Tanam wortel")
-                print("[KEBUN] Tanam wortel sukses")
+                print("[KEBUN] Tanam wortel")
                 await asyncio.sleep(2)
 
                 # Siram
                 await client.send_message(BOT_USERNAME, "/siram")
-                add_exp(50, "[KEBUN] Siram tanaman")
-                print("[KEBUN] Siram sukses")
+                print("[KEBUN] Siram tanaman")
                 await asyncio.sleep(2)
 
                 # Tunggu panen
@@ -109,8 +112,7 @@ async def auto_kebun():
 
                 # Panen
                 await client.send_message(BOT_USERNAME, "/ambilPanen")
-                add_exp(375, "[KEBUN] Panen wortel")
-                print("[KEBUN] Panen sukses")
+                print("[KEBUN] Panen wortel")
 
                 # Cek level up
                 await check_levelup()
@@ -149,23 +151,48 @@ async def handler_owner(event):
         await event.reply("⏹ Loop KEBUN dihentikan")
         print(">> Kebun STOPPED")
 
+    elif msg == "start all":
+        running_maling = True
+        running_kebun = True
+        await event.reply("✅ Semua loop DIMULAI")
+        print(">> ALL STARTED")
+
+    elif msg == "stop all":
+        running_maling = False
+        running_kebun = False
+        await event.reply("⏹ Semua loop DIHENTIKAN")
+        print(">> ALL STOPPED")
+
     elif msg == "status":
         await client.send_message(BOT_USERNAME, "/status")
 
-# --- Handler pesan dari game bot (baca EXP & log lain) ---
+# --- Handler pesan dari game bot ---
 @client.on(events.NewMessage(from_users=BOT_USERNAME))
 async def handler_bot(event):
     text = event.raw_text
+
+    # Baca EXP dari /status
     if "EXP:" in text:
-        parse_exp(text)
+        parse_status_exp(text)
+
+    # Tambah EXP dari reward
+    if "EXP+" in text:
+        parse_gain_exp(text)
+        await check_levelup()
+
+    # Level up berhasil
     if "berhasil meningkatkan level" in text.lower():
         print("🎉 [LEVELUP] Level naik! EXP direset")
+        await asyncio.sleep(2)
+        await client.send_message(BOT_USERNAME, "/status")
 
 # --- Main ---
 async def main():
     print(">> Bot siap jalan.")
     print("   Perintah: 'start maling' / 'stop maling'")
     print("             'start kebun'  / 'stop kebun'")
+    print("             'start all'    / 'stop all'")
+    print("             'status'")
     await client.send_message(BOT_USERNAME, "/status")
     asyncio.create_task(auto_maling())
     asyncio.create_task(auto_kebun())
