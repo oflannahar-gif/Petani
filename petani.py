@@ -38,7 +38,7 @@ SESSION_STRING = os.getenv("TELEGRAM_SESSION")
 if SESSION_STRING:
     client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
 else:
-    client = TelegramClient("petani_session", API_ID, API_HASH)
+    client = TelegramClient("Petani_session", API_ID, API_HASH)
 
 # ---------------- LOGGING ----------------
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s')
