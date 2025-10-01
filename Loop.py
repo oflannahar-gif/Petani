@@ -144,7 +144,19 @@ async def bot_reply(event):
 async def main():
     await client.start(phone=PHONE)
     logger.info("Client started")
-    print(f"Bot siap ✅\n\nCommand di Saved Messages:\n- 'Masak' → pilih menu\n- 'Mancing' → pilih lokasi\n- 'stop' → hentikan loop")
+    msg_intro = ("Bot siap ✅\n\nCommand di Saved Messages:\n"
+                 "- 'Masak' → pilih menu\n"
+                 "- 'Mancing' → pilih lokasi\n"
+                 "- 'stop' → hentikan loop")
+    print(msg_intro)
+
+    # Kirim ke Saved Messages
+    try:
+        await client.send_message("me", msg_intro)
+        print(">> Pesan awal dikirim ke Saved Messages")
+    except Exception as e:
+        print("❌ Gagal kirim ke Saved Messages:", e)
+
     await client.run_until_disconnected()
 
 if __name__ == "__main__":
