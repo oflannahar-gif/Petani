@@ -1,8 +1,8 @@
-# auto_mancing.py — Auto Fishing di Kampung Maifam
+# auto_game.py — Auto Fishing & Cooking di Kampung Maifam
 # Features:
-#   - Kirim "mancing" → ditanya lokasi
-#   - Ketik nama lokasi → bot looping kirim lokasi + klik "Tarik Alat Pancing"
-#   - Pause/Resume/Stop manual
+#   - Mode Mancing: pilih lokasi → auto klik "Tarik Alat Pancing" + ulang
+#   - Mode Masak: pilih resep → loop kirim kode resep tiap 2 detik
+#   - Pause / Resume / Stop manual
 #
 # Requirements:
 #   pip install telethon python-dotenv
@@ -28,7 +28,7 @@ if not API_ID or not API_HASH or not PHONE:
 
 # ---------------- logging ----------------
 logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s')
-logger = logging.getLogger("fishing_bot")
+logger = logging.getLogger("game_bot")
 
 # ---------------- client ----------------
 SESSION_STRING = os.getenv("TELEGRAM_SESSION")
@@ -38,9 +38,11 @@ else:
     client = TelegramClient("loop_session", API_ID, API_HASH)
 
 # ---------------- state ----------------
-lokasi_mancing = None
-auto_mancing = False
+mode = None           # "mancing" atau "masak"
+auto_loop = False
 paused = False
+lokasi_mancing = None
+kode_masak = None
 
 async def human_sleep(min_s=1.0, max_s=1.5):
     """Jeda random biar ga terlalu bot-like"""
@@ -49,46 +51,72 @@ async def human_sleep(min_s=1.0, max_s=1.5):
 # ---------------- commands ----------------
 @client.on(events.NewMessage(from_users=OWNER_ID, pattern='mancing'))
 async def cmd_mancing(event):
-    global auto_mancing, lokasi_mancing
+    global mode, auto_loop, lokasi_mancing, kode_masak
+    mode = "mancing"
     lokasi_mancing = None
-    auto_mancing = False
+    kode_masak = None
+    auto_loop = False
     await event.reply("Mancing dimana? 🎣")
+
+@client.on(events.NewMessage(from_users=OWNER_ID, pattern='masak'))
+async def cmd_masak(event):
+    global mode, auto_loop, lokasi_mancing, kode_masak
+    mode = "masak"
+    lokasi_mancing = None
+    kode_masak = None
+    auto_loop = False
+    await event.reply("Mau masak apa? 🍳 (contoh: /masak_udangkeju_40)")
 
 @client.on(events.NewMessage(from_users=OWNER_ID))
 async def cmd_owner(event):
-    global auto_mancing, lokasi_mancing, paused
+    global auto_loop, lokasi_mancing, kode_masak, paused, mode
     msg = (event.raw_text or "").strip().lower()
 
-    if lokasi_mancing is None and msg not in ["pause", "resume", "stop", "mancing"]:
+    if msg in ["mancing", "masak", "stop", "pause", "resume"]:
+        return  # sudah ditangani command handler
+
+    # ----- jika mode Mancing -----
+    if mode == "mancing" and lokasi_mancing is None:
         lokasi_mancing = event.raw_text.strip()
-        auto_mancing = True
+        auto_loop = True
         paused = False
         await event.reply(f"Mulai auto-mancing di {lokasi_mancing} 🎣")
         await human_sleep()
         await client.send_message(BOT_USERNAME, lokasi_mancing)
 
+    # ----- jika mode Masak -----
+    elif mode == "masak" and kode_masak is None:
+        kode_masak = event.raw_text.strip()
+        auto_loop = True
+        paused = False
+        await event.reply(f"Mulai auto-masak dengan kode {kode_masak} 🍳")
+        asyncio.create_task(loop_masak())
+
+    # ----- kontrol umum -----
     elif msg == "pause":
         paused = True
-        await event.reply("⏸ Auto-mancing dijeda")
+        await event.reply("⏸ Loop dijeda")
 
     elif msg == "resume":
         paused = False
-        await event.reply("▶️ Auto-mancing dilanjutkan")
-        if lokasi_mancing:
+        await event.reply("▶️ Loop dilanjutkan")
+        if mode == "mancing" and lokasi_mancing:
             await human_sleep()
             await client.send_message(BOT_USERNAME, lokasi_mancing)
 
     elif msg == "stop":
-        auto_mancing = False
+        auto_loop = False
         lokasi_mancing = None
+        kode_masak = None
+        mode = None
         paused = False
-        await event.reply("⏹ Auto-mancing dihentikan")
+        await event.reply("⏹ Loop dihentikan")
 
 # ---------------- handler untuk bot game ----------------
 @client.on(events.NewMessage(from_users=BOT_USERNAME))
 async def bot_reply(event):
-    global auto_mancing, lokasi_mancing, paused
-    if not auto_mancing or not lokasi_mancing or paused:
+    global auto_loop, lokasi_mancing, paused, mode
+    if not auto_loop or paused or mode != "mancing" or not lokasi_mancing:
         return
 
     text = event.raw_text or ""
@@ -108,11 +136,30 @@ async def bot_reply(event):
         await human_sleep(1, 2)
         await client.send_message(BOT_USERNAME, lokasi_mancing)
 
+# ---------------- loop masak ----------------
+async def loop_masak():
+    global auto_loop, kode_masak, paused
+    while auto_loop and kode_masak and mode == "masak":
+        if not paused:
+            await client.send_message(BOT_USERNAME, kode_masak)
+        await asyncio.sleep(2)
+
 # ---------------- startup ----------------
 async def main():
     await client.start(phone=PHONE)
     logger.info("Client started")
-    print(f">> Bot siap Auto Mancing di @{BOT_USERNAME}")
+    print(f">> Bot siap Auto Game di @{BOT_USERNAME}")
+
+    # kirim pesan ke Saved Messages
+    await client.send_message(
+        OWNER_ID,
+        "Bot siap ✅\n\n"
+        "Command di Saved Messages:\n"
+        "- 'Masak' → pilih menu\n"
+        "- 'Mancing' → pilih lokasi\n"
+        "- 'stop' → hentikan loop"
+    )
+
     await client.run_until_disconnected()
 
 if __name__ == "__main__":
