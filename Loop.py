@@ -42,7 +42,7 @@ lokasi_mancing = None
 auto_mancing = False
 paused = False
 
-async def human_sleep(min_s=1.0, max_s=2.0):
+async def human_sleep(min_s=1.0, max_s=1.5):
     """Jeda random biar ga terlalu bot-like"""
     await asyncio.sleep(random.uniform(min_s, max_s))
 
@@ -105,7 +105,7 @@ async def bot_reply(event):
 
     # kalau ada hasil tangkapan, kirim ulang lokasi
     if "kamu mendapatkan" in text.lower():
-        await human_sleep(4, 8)
+        await human_sleep(1, 2)
         await client.send_message(BOT_USERNAME, lokasi_mancing)
 
 # ---------------- startup ----------------
