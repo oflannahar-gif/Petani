@@ -15,7 +15,7 @@ PHONE = os.getenv("PHONE")
 BOT_USERNAME = os.getenv("BOT_USERNAME")   # username bot game, ex: "KampungMaifamBot"
 OWNER_ID = int(os.getenv("OWNER_ID"))      # ID kamu sendiri (biar hanya kamu yang bisa kontrol)
 
-SESSION = "mancing"  # nama file session
+SESSION = "loop_session"  # nama file session
 # ----------------------------
 
 client = TelegramClient(SESSION, API_ID, API_HASH)
