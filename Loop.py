@@ -1,9 +1,8 @@
 # auto_game.py — Auto Mancing & Masak di Kampung Maifam
 # Features:
 #   - 'Masak' → pilih menu, loop kirim kode masak tiap 2 detik
-#   - 'Mancing' → pilih lokasi, loop kirim lokasi + klik "Tarik Alat Pancing" secara urut
+#   - 'Mancing' → pilih lokasi, loop kirim lokasi + klik "Tarik Alat Pancing"
 #   - Pause/Resume/Stop manual
-#   - Hentikan loop otomatis jika energi habis
 #
 # Requirements:
 #   pip install telethon python-dotenv
@@ -39,12 +38,11 @@ else:
     client = TelegramClient("loop_session", API_ID, API_HASH)
 
 # ---------------- state ----------------
-mode = None           # "mancing" atau "masak"
+mode = None  # "mancing" atau "masak"
 lokasi_mancing = None
 kode_masak = None
 auto_loop = False
 paused = False
-last_action = None    # None / "sent_location" / "clicked_button"
 
 async def human_sleep(min_s=1.0, max_s=1.5):
     await asyncio.sleep(random.uniform(min_s, max_s))
@@ -68,7 +66,7 @@ async def loop_masak():
 # ---------------- handler owner ----------------
 @client.on(events.NewMessage(from_users=OWNER_ID))
 async def cmd_owner(event):
-    global mode, lokasi_mancing, kode_masak, auto_loop, paused, last_action
+    global mode, lokasi_mancing, kode_masak, auto_loop, paused
 
     msg = (event.raw_text or "").strip()
     lmsg = msg.lower()
@@ -87,7 +85,6 @@ async def cmd_owner(event):
         lokasi_mancing = None
         auto_loop = False
         paused = False
-        last_action = None
         await event.reply("Mancing dimana? 🎣")
 
     elif lmsg == "stop":
@@ -96,7 +93,6 @@ async def cmd_owner(event):
         lokasi_mancing = None
         paused = False
         mode = None
-        last_action = None
         await event.reply("⏹ Semua loop dihentikan")
 
     else:
@@ -112,74 +108,43 @@ async def cmd_owner(event):
             lokasi_mancing = msg
             auto_loop = True
             paused = False
-            last_action = None
             await event.reply(f"Mulai auto-mancing di {lokasi_mancing} 🎣")
+            # Kirim lokasi pertama
+            await human_sleep()
+            await client.send_message(BOT_USERNAME, lokasi_mancing)
 
 # ---------------- handler bot game ----------------
 @client.on(events.NewMessage(from_users=BOT_USERNAME))
 async def bot_reply(event):
-    global lokasi_mancing, kode_masak, auto_loop, paused, mode, last_action
+    global lokasi_mancing, auto_loop, paused, mode
 
-    text = (event.raw_text or "").lower()
-    print(f"[BOT] {text[:80]}...")
-
-    # ====== DETEKSI ENERGI HABIS ======
-    if "kamu tidak memiliki cukup energi" in text and "/tidur" in text:
-        print("⚠️ Energi habis! Semua loop dihentikan.")
-        auto_loop = False
-        lokasi_mancing = None
-        kode_masak = None
-        paused = False
-        mode = None
-        last_action = None
-        return
-
-    # ====== LOOP MANCING URUT ======
     if mode != "mancing" or not auto_loop or not lokasi_mancing or paused:
         return
 
-    # 1️⃣ Kirim lokasi dulu kalau belum dikirim
-    if last_action is None:
-        await human_sleep()
-        await client.send_message(BOT_USERNAME, lokasi_mancing)
-        last_action = "sent_location"
-        print(f">> Kirim lokasi: {lokasi_mancing}")
-        return
+    text = event.raw_text or ""
+    print(f"[BOT] {text[:60]}...")
 
-    # 2️⃣ Klik tombol "Tarik Alat Pancing" kalau ada
-    if last_action == "sent_location" and event.buttons:
+    # klik tombol "Tarik Alat Pancing" kalau ada
+    if event.buttons:
         for row in event.buttons:
             for button in row:
                 if "Tarik Alat Pancing" in button.text:
                     await human_sleep()
                     await button.click()
-                    last_action = "clicked_button"
                     print(">> Klik 'Tarik Alat Pancing'")
                     return
 
-    # 3️⃣ Reset state setelah hasil tangkapan muncul
-    if last_action == "clicked_button" and "kamu mendapatkan" in text:
-        await human_sleep(4, 8)
-        last_action = None
-        print(">> Tangkap selesai, siap kirim lokasi lagi")
+    # kalau ada hasil tangkapan, kirim ulang lokasi
+    if "kamu mendapatkan" in text.lower():
+        await human_sleep(1, 2)
+        await client.send_message(BOT_USERNAME, lokasi_mancing)
+        print(f">> Kirim ulang lokasi: {lokasi_mancing}")
 
 # ---------------- startup ----------------
 async def main():
     await client.start(phone=PHONE)
     logger.info("Client started")
-    msg_intro = ("Bot siap ✅\n\nCommand di Saved Messages:\n"
-                 "- 'Masak' → pilih menu\n"
-                 "- 'Mancing' → pilih lokasi\n"
-                 "- 'stop' → hentikan loop")
-    print(msg_intro)
-
-    # Kirim ke Saved Messages
-    try:
-        await client.send_message("me", msg_intro)
-        print(">> Pesan awal dikirim ke Saved Messages")
-    except Exception as e:
-        print("❌ Gagal kirim ke Saved Messages:", e)
-
+    print(f"Bot siap ✅\n\nCommand di Saved Messages:\n- 'Masak' → pilih menu\n- 'Mancing' → pilih lokasi\n- 'stop' → hentikan loop")
     await client.run_until_disconnected()
 
 if __name__ == "__main__":
