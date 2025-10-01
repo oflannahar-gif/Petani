@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# auto_mancing.py
+# Loop.py — Auto Mancing Telethon
 
 import asyncio
 import os
@@ -12,20 +12,20 @@ load_dotenv("kunci.env")
 API_ID = int(os.getenv("API_ID"))
 API_HASH = os.getenv("API_HASH")
 PHONE = os.getenv("PHONE")
-BOT_USERNAME = os.getenv("BOT_USERNAME")   # username bot game
-OWNER_ID = int(os.getenv("OWNER_ID"))      # ID kamu sendiri
+BOT_USERNAME = os.getenv("BOT_USERNAME")   # username bot game, ex: "KampungMaifamBot"
+OWNER_ID = int(os.getenv("OWNER_ID"))      # ID kamu sendiri (biar hanya kamu yang bisa kontrol)
 
-SESSION = "loop_session"  # nama session file
+SESSION = "mancing"  # nama file session
 # ----------------------------
 
 client = TelegramClient(SESSION, API_ID, API_HASH)
 
-# status
+# status global
 fishing = False
 spot = None
 
 
-@client.on(events.NewMessage(from_users=OWNER_ID))  # dengar perintah hanya dari kamu
+@client.on(events.NewMessage(from_users=OWNER_ID))  # hanya dengar pesan dari kamu
 async def command_handler(event):
     global fishing, spot
 
@@ -48,22 +48,28 @@ async def loop_mancing():
     while fishing:
         try:
             # kirim lokasi ke bot game
-            msg = await client.send_message(BOT_USERNAME, spot)
+            await client.send_message(BOT_USERNAME, spot)
 
-            # tunggu balasan dari bot
-            resp = await client.wait_for(
-                events.NewMessage(from_users=BOT_USERNAME),
-                timeout=10
-            )
+            # tunggu balasan bot (max 10 detik)
+            try:
+                resp = await asyncio.wait_for(
+                    client.wait_event(events.NewMessage(from_users=BOT_USERNAME)),
+                    timeout=10
+                )
+            except asyncio.TimeoutError:
+                print("⚠️ Timeout: tidak ada balasan bot.")
+                continue
 
             # klik tombol kalau ada
             if resp.buttons:
-                await resp.click(0)  # klik tombol pertama ("Tarik Alat Pancing")
+                try:
+                    await resp.click(0)  # klik tombol pertama ("Tarik Alat Pancing")
+                except Exception as e:
+                    print("⚠️ Gagal klik tombol:", e)
 
-            await asyncio.sleep(2)  # delay sebelum ulang lagi
+            # delay sebelum ulang lagi
+            await asyncio.sleep(2)
 
-        except asyncio.TimeoutError:
-            print("⚠️ Timeout: tidak ada balasan bot.")
         except Exception as e:
             print("❌ Error:", e)
             fishing = False
@@ -77,5 +83,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-
