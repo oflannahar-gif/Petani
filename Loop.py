@@ -42,56 +42,21 @@ lokasi_mancing = None
 auto_mancing = False
 paused = False
 
-async def human_sleep(min_s=1.5, max_s=2.5):
+async def human_sleep(min_s=1.5, max_s=3.0):
     """Jeda random biar ga terlalu bot-like"""
     await asyncio.sleep(random.uniform(min_s, max_s))
 
-# ---------------- main loop ----------------
-async def mancing_loop():
-    global lokasi_mancing, auto_mancing, paused
-    while auto_mancing and lokasi_mancing:
-        if paused:
-            await asyncio.sleep(2)
-            continue
-        try:
-            # 1. Kirim lokasi
-            await client.send_message(BOT_USERNAME, lokasi_mancing)
-            await human_sleep()
-
-            # 2. Tunggu respon bot
-            response = await client.wait_event(events.NewMessage(from_users=BOT_USERNAME))
-
-            # 3. Cari tombol "Tarik Alat Pancing"
-            if response.buttons:
-                for row in response.buttons:
-                    for button in row:
-                        if "Tarik Alat Pancing" in button.text:
-                            await human_sleep()
-                            await button.click()
-                            # tunggu hasil tangkapan
-                            await client.wait_event(events.NewMessage(from_users=BOT_USERNAME))
-
-            # Delay sebelum ulangi
-            await human_sleep(3, 6)
-
-        except asyncio.TimeoutError:
-            print("⚠️ Timeout, ulangi...")
-            await asyncio.sleep(3)
-        except Exception as e:
-            print("❌ Error loop:", e)
-            await asyncio.sleep(5)
-
 # ---------------- commands ----------------
-@client.on(events.NewMessage(pattern='mancing', from_users=OWNER_ID))
-async def start_mancing(event):
+@client.on(events.NewMessage(from_users=OWNER_ID, pattern='mancing'))
+async def cmd_mancing(event):
     global auto_mancing, lokasi_mancing
     lokasi_mancing = None
     auto_mancing = False
     await event.reply("Mancing dimana? 🎣")
 
 @client.on(events.NewMessage(from_users=OWNER_ID))
-async def owner_control(event):
-    global auto_mancing, paused, lokasi_mancing
+async def cmd_owner(event):
+    global auto_mancing, lokasi_mancing, paused
     msg = (event.raw_text or "").strip().lower()
 
     if lokasi_mancing is None and msg not in ["pause", "resume", "stop", "mancing"]:
@@ -99,18 +64,49 @@ async def owner_control(event):
         auto_mancing = True
         paused = False
         await event.reply(f"Mulai auto-mancing di {lokasi_mancing} 🎣")
-        client.loop.create_task(mancing_loop())
+        await human_sleep()
+        await client.send_message(BOT_USERNAME, lokasi_mancing)
 
     elif msg == "pause":
         paused = True
         await event.reply("⏸ Auto-mancing dijeda")
+
     elif msg == "resume":
         paused = False
         await event.reply("▶️ Auto-mancing dilanjutkan")
+        if lokasi_mancing:
+            await human_sleep()
+            await client.send_message(BOT_USERNAME, lokasi_mancing)
+
     elif msg == "stop":
         auto_mancing = False
         lokasi_mancing = None
+        paused = False
         await event.reply("⏹ Auto-mancing dihentikan")
+
+# ---------------- handler untuk bot game ----------------
+@client.on(events.NewMessage(from_users=BOT_USERNAME))
+async def bot_reply(event):
+    global auto_mancing, lokasi_mancing, paused
+    if not auto_mancing or not lokasi_mancing or paused:
+        return
+
+    text = event.raw_text or ""
+    print(f"[BOT] {text[:60]}...")
+
+    # klik tombol kalau ada
+    if event.buttons:
+        for row in event.buttons:
+            for button in row:
+                if "Tarik Alat Pancing" in button.text:
+                    await human_sleep()
+                    await button.click()
+                    return
+
+    # kalau ada hasil tangkapan, kirim ulang lokasi
+    if "kamu mendapatkan" in text.lower():
+        await human_sleep(4, 8)
+        await client.send_message(BOT_USERNAME, lokasi_mancing)
 
 # ---------------- startup ----------------
 async def main():
