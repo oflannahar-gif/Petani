@@ -1,85 +1,122 @@
-#!/usr/bin/env python3
-# Loop.py — Auto Mancing Telethon
+# auto_mancing.py — Auto Fishing di Kampung Maifam
+# Features:
+#   - Kirim "mancing" → ditanya lokasi
+#   - Ketik nama lokasi → bot looping kirim lokasi + klik "Tarik Alat Pancing"
+#   - Pause/Resume manual
+#
+# Requirements:
+#   pip install telethon python-dotenv
 
-import asyncio
 import os
-from telethon import TelegramClient, events
+import asyncio
+import random
+import logging
 from dotenv import load_dotenv
+from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 
-# ---------- CONFIG ----------
+# ---------------- config (.env) ----------------
 load_dotenv("kunci.env")
+API_ID = int(os.getenv("API_ID") or 0)
+API_HASH = os.getenv("API_HASH") or ""
+PHONE = os.getenv("PHONE") or ""
+BOT_USERNAME = (os.getenv("BOT_USERNAME") or "KampungMaifamBot").lstrip('@')
+OWNER_ID = int(os.getenv("OWNER_ID") or 0)
 
-API_ID = int(os.getenv("API_ID"))
-API_HASH = os.getenv("API_HASH")
-PHONE = os.getenv("PHONE")
-BOT_USERNAME = os.getenv("BOT_USERNAME")   # username bot game, ex: "KampungMaifamBot"
-OWNER_ID = int(os.getenv("OWNER_ID"))      # ID kamu sendiri (biar hanya kamu yang bisa kontrol)
+if not API_ID or not API_HASH or not PHONE:
+    raise SystemExit("ERROR: Pastikan API_ID, API_HASH, PHONE ter-set di kunci.env")
 
-SESSION = "loop_session"  # nama file session
-# ----------------------------
+# ---------------- logging ----------------
+logging.basicConfig(level=logging.INFO, format='[%(asctime)s] %(message)s')
+logger = logging.getLogger("fishing_bot")
 
-client = TelegramClient(SESSION, API_ID, API_HASH)
+# ---------------- client ----------------
+SESSION_STRING = os.getenv("TELEGRAM_SESSION")
+if SESSION_STRING:
+    client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
+else:
+    client = TelegramClient("loop_session", API_ID, API_HASH)
 
-# status global
-fishing = False
-spot = None
+# ---------------- state ----------------
+lokasi_mancing = None
+auto_mancing = False
+paused = False
 
+async def human_sleep(min_s=1.5, max_s=2.5):
+    """Jeda random biar ga terlalu bot-like"""
+    await asyncio.sleep(random.uniform(min_s, max_s))
 
-@client.on(events.NewMessage(from_users=OWNER_ID))  # hanya dengar pesan dari kamu
-async def command_handler(event):
-    global fishing, spot
-
-    cmd = event.raw_text.strip()
-
-    if cmd.lower() == "stop":
-        fishing = False
-        await event.respond("⛔ Auto mancing dihentikan.")
-        return
-
-    # anggap selain 'stop' = nama spot
-    spot = cmd
-    fishing = True
-    await event.respond(f"🎣 Mulai auto mancing di **{spot}**")
-    asyncio.create_task(loop_mancing())
-
-
-async def loop_mancing():
-    global fishing, spot
-    while fishing:
-        try:
-            # kirim lokasi ke bot game
-            await client.send_message(BOT_USERNAME, spot)
-
-            # tunggu balasan bot (max 10 detik)
-            try:
-                resp = await asyncio.wait_for(
-                    client.wait_event(events.NewMessage(from_users=BOT_USERNAME)),
-                    timeout=10
-                )
-            except asyncio.TimeoutError:
-                print("⚠️ Timeout: tidak ada balasan bot.")
-                continue
-
-            # klik tombol kalau ada
-            if resp.buttons:
-                try:
-                    await resp.click(0)  # klik tombol pertama ("Tarik Alat Pancing")
-                except Exception as e:
-                    print("⚠️ Gagal klik tombol:", e)
-
-            # delay sebelum ulang lagi
+# ---------------- main loop ----------------
+async def mancing_loop():
+    global lokasi_mancing, auto_mancing, paused
+    while auto_mancing and lokasi_mancing:
+        if paused:
             await asyncio.sleep(2)
+            continue
+        try:
+            # 1. Kirim lokasi
+            msg = await client.send_message(BOT_USERNAME, lokasi_mancing)
+            await human_sleep()
 
+            # 2. Tunggu respon bot
+            response = await client.wait_for(events.NewMessage(from_users=BOT_USERNAME), timeout=10)
+
+            # 3. Cari tombol "Tarik Alat Pancing"
+            if response.buttons:
+                for row in response.buttons:
+                    for button in row:
+                        if "Tarik Alat Pancing" in button.text:
+                            await human_sleep()
+                            await button.click()
+                            # tunggu hasil tangkapan
+                            await client.wait_for(events.NewMessage(from_users=BOT_USERNAME), timeout=10)
+            # Delay sebelum ulangi
+            await human_sleep(3, 5)
+
+        except asyncio.TimeoutError:
+            print("⚠️ Timeout, ulangi...")
+            await asyncio.sleep(3)
         except Exception as e:
-            print("❌ Error:", e)
-            fishing = False
+            print("❌ Error loop:", e)
+            await asyncio.sleep(5)
 
+# ---------------- commands ----------------
+@client.on(events.NewMessage(pattern='mancing'))
+async def start_mancing(event):
+    global auto_mancing, lokasi_mancing
+    lokasi_mancing = None
+    auto_mancing = False
+    await event.reply("Mancing dimana? 🎣")
 
+@client.on(events.NewMessage(from_users=OWNER_ID))
+async def owner_control(event):
+    global auto_mancing, paused, lokasi_mancing
+    msg = (event.raw_text or "").strip().lower()
+
+    if lokasi_mancing is None and msg not in ["pause", "resume", "stop"]:
+        lokasi_mancing = event.raw_text.strip()
+        auto_mancing = True
+        paused = False
+        await event.reply(f"Mulai auto-mancing di {lokasi_mancing} 🎣")
+        client.loop.create_task(mancing_loop())
+
+    elif msg == "pause":
+        paused = True
+        await event.reply("⏸ Auto-mancing dijeda")
+    elif msg == "resume":
+        paused = False
+        await event.reply("▶️ Auto-mancing dilanjutkan")
+    elif msg == "stop":
+        auto_mancing = False
+        lokasi_mancing = None
+        await event.reply("⏹ Auto-mancing dihentikan")
+
+# ---------------- startup ----------------
 async def main():
     await client.start(phone=PHONE)
-    print("✅ Bot siap, kirim nama lokasi di Saved Messages kamu untuk mulai mancing!")
+    logger.info("Client started")
+    print(f">> Bot siap Auto Mancing di @{BOT_USERNAME}")
     await client.run_until_disconnected()
-
 
 if __name__ == "__main__":
     asyncio.run(main())
