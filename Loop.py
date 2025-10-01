@@ -2,7 +2,7 @@
 # Features:
 #   - Kirim "mancing" → ditanya lokasi
 #   - Ketik nama lokasi → bot looping kirim lokasi + klik "Tarik Alat Pancing"
-#   - Pause/Resume manual
+#   - Pause/Resume/Stop manual
 #
 # Requirements:
 #   pip install telethon python-dotenv
@@ -55,11 +55,11 @@ async def mancing_loop():
             continue
         try:
             # 1. Kirim lokasi
-            msg = await client.send_message(BOT_USERNAME, lokasi_mancing)
+            await client.send_message(BOT_USERNAME, lokasi_mancing)
             await human_sleep()
 
             # 2. Tunggu respon bot
-            response = await client.wait_for(events.NewMessage(from_users=BOT_USERNAME), timeout=10)
+            response = await client.wait_event(events.NewMessage(from_users=BOT_USERNAME))
 
             # 3. Cari tombol "Tarik Alat Pancing"
             if response.buttons:
@@ -69,9 +69,10 @@ async def mancing_loop():
                             await human_sleep()
                             await button.click()
                             # tunggu hasil tangkapan
-                            await client.wait_for(events.NewMessage(from_users=BOT_USERNAME), timeout=10)
+                            await client.wait_event(events.NewMessage(from_users=BOT_USERNAME))
+
             # Delay sebelum ulangi
-            await human_sleep(3, 5)
+            await human_sleep(3, 6)
 
         except asyncio.TimeoutError:
             print("⚠️ Timeout, ulangi...")
@@ -81,7 +82,7 @@ async def mancing_loop():
             await asyncio.sleep(5)
 
 # ---------------- commands ----------------
-@client.on(events.NewMessage(pattern='mancing'))
+@client.on(events.NewMessage(pattern='mancing', from_users=OWNER_ID))
 async def start_mancing(event):
     global auto_mancing, lokasi_mancing
     lokasi_mancing = None
@@ -93,7 +94,7 @@ async def owner_control(event):
     global auto_mancing, paused, lokasi_mancing
     msg = (event.raw_text or "").strip().lower()
 
-    if lokasi_mancing is None and msg not in ["pause", "resume", "stop"]:
+    if lokasi_mancing is None and msg not in ["pause", "resume", "stop", "mancing"]:
         lokasi_mancing = event.raw_text.strip()
         auto_mancing = True
         paused = False
@@ -119,4 +120,5 @@ async def main():
     await client.run_until_disconnected()
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    with client:
+        client.loop.run_until_complete(main())
