@@ -3,6 +3,7 @@
 #   - 'Masak' → pilih menu, loop kirim kode masak tiap 2 detik
 #   - 'Mancing' → pilih lokasi, loop kirim lokasi + klik "Tarik Alat Pancing"
 #   - Pause/Resume/Stop manual
+#   - Hentikan loop otomatis jika energi habis
 #
 # Requirements:
 #   pip install telethon python-dotenv
@@ -63,6 +64,21 @@ async def loop_masak():
             print("❌ Error loop masak:", e)
             await asyncio.sleep(2)
 
+# ---------------- loop mancing ----------------
+async def loop_mancing():
+    global auto_loop, lokasi_mancing, paused
+    print(">> Loop Mancing dimulai")
+    while auto_loop and lokasi_mancing:
+        if paused:
+            await asyncio.sleep(1)
+            continue
+        try:
+            await client.send_message(BOT_USERNAME, lokasi_mancing)
+            await asyncio.sleep(2)
+        except Exception as e:
+            print("❌ Error loop mancing:", e)
+            await asyncio.sleep(2)
+
 # ---------------- handler owner ----------------
 @client.on(events.NewMessage(from_users=OWNER_ID))
 async def cmd_owner(event):
@@ -109,36 +125,42 @@ async def cmd_owner(event):
             auto_loop = True
             paused = False
             await event.reply(f"Mulai auto-mancing di {lokasi_mancing} 🎣")
-            # Kirim lokasi pertama
-            await human_sleep()
-            await client.send_message(BOT_USERNAME, lokasi_mancing)
+            asyncio.create_task(loop_mancing())
 
 # ---------------- handler bot game ----------------
 @client.on(events.NewMessage(from_users=BOT_USERNAME))
 async def bot_reply(event):
-    global lokasi_mancing, auto_loop, paused, mode
+    global lokasi_mancing, kode_masak, auto_loop, paused, mode
 
-    if mode != "mancing" or not auto_loop or not lokasi_mancing or paused:
+    text = (event.raw_text or "").lower()
+    print(f"[BOT] {text[:80]}...")
+
+    # ====== DETEKSI ENERGI HABIS ======
+    if "kamu tidak memiliki cukup energi" in text and "/tidur" in text:
+        print("⚠️ Energi habis! Semua loop dihentikan.")
+        auto_loop = False
+        lokasi_mancing = None
+        kode_masak = None
+        paused = False
+        mode = None
         return
 
-    text = event.raw_text or ""
-    print(f"[BOT] {text[:60]}...")
-
-    # klik tombol "Tarik Alat Pancing" kalau ada
-    if event.buttons:
-        for row in event.buttons:
-            for button in row:
-                if "Tarik Alat Pancing" in button.text:
-                    await human_sleep()
-                    await button.click()
-                    print(">> Klik 'Tarik Alat Pancing'")
-                    return
-
-    # kalau ada hasil tangkapan, kirim ulang lokasi
-    if "kamu mendapatkan" in text.lower():
-        await human_sleep(1, 2)
-        await client.send_message(BOT_USERNAME, lokasi_mancing)
-        print(f">> Kirim ulang lokasi: {lokasi_mancing}")
+    # ====== LOOP MANCING ======
+    if mode == "mancing" and auto_loop and lokasi_mancing and not paused:
+        # klik tombol "Tarik Alat Pancing" kalau ada
+        if event.buttons:
+            for row in event.buttons:
+                for button in row:
+                    if "Tarik Alat Pancing" in button.text:
+                        await human_sleep()
+                        await button.click()
+                        print(">> Klik 'Tarik Alat Pancing'")
+                        return
+        # kirim ulang lokasi jika ada hasil tangkapan
+        if "kamu mendapatkan" in text:
+            await human_sleep(1, 2)
+            await client.send_message(BOT_USERNAME, lokasi_mancing)
+            print(f">> Kirim ulang lokasi: {lokasi_mancing}")
 
 # ---------------- startup ----------------
 async def main():
