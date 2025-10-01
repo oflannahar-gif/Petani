@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# bot.py
+# Loop.py
 # Dual loop bot: masak & mancing, dikontrol lewat Saved Messages.
 # Requirements:
 #   pip install telethon python-dotenv
@@ -16,7 +16,7 @@ API_ID = int(os.getenv("API_ID") or 0)
 API_HASH = os.getenv("API_HASH") or ""
 PHONE = os.getenv("PHONE") or ""
 BOT_USERNAME = os.getenv("BOT_USERNAME") or ""
-INTERVAL = 2  # detik antar kirim
+INTERVAL = 2  # detik antar aksi
 
 if not API_ID or not API_HASH or not PHONE or not BOT_USERNAME:
     raise SystemExit("ERROR: Pastikan API_ID, API_HASH, PHONE, BOT_USERNAME ter-set di kunci.env")
@@ -81,28 +81,32 @@ async def sender_loop():
                     running = False
                     break
                 try:
-                    # kirim lokasi
+                    # 1. Kirim lokasi
                     await client.send_message(BOT_USERNAME, mancing_lokasi)
                     print(f"[{ts()}] [MANCING] Kirim lokasi: {mancing_lokasi}")
 
-                    # tunggu balasan bot yg berisi tombol
+                    # 2. Tunggu balasan bot
                     resp = await client.wait_for(
                         events.NewMessage(from_users=BOT_USERNAME),
                         timeout=5
                     )
 
-                    # klik tombol "Tarik Alat Pancing"
-                    try:
-                        await resp.click(text="Tarik Alat Pancing")
-                        print(f"[{ts()}] [MANCING] Tarik Alat Pancing diklik")
-                    except Exception:
-                        print(f"[{ts()}] [MANCING] Tombol tidak ditemukan.")
+                    # 3. Klik tombol Tarik
+                    if resp.buttons:
+                        try:
+                            await resp.click(text="Tarik Alat Pancing")
+                            print(f"[{ts()}] [MANCING] {mancing_lokasi} → Tarik Alat Pancing")
+                        except Exception as e:
+                            print(f"[{ts()}] [MANCING] Klik gagal: {e}")
+                    else:
+                        print(f"[{ts()}] [MANCING] Tidak ada tombol di pesan balasan")
 
                 except asyncio.TimeoutError:
                     print(f"[{ts()}] [MANCING] Timeout tunggu balasan bot.")
                 except Exception as e:
                     print(f"[{ts()}] [ERROR mancing] {e}")
 
+            # jeda antar aksi
             try:
                 await asyncio.sleep(INTERVAL)
             except asyncio.CancelledError:
