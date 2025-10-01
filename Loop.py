@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 # Loop.py
 # Dual loop bot: masak & mancing, dikontrol lewat Saved Messages.
-# Requirements:
-#   pip install telethon python-dotenv
+# pip install telethon python-dotenv
 
 import os
 import asyncio
@@ -24,9 +23,9 @@ if not API_ID or not API_HASH or not PHONE or not BOT_USERNAME:
 client = TelegramClient("loop_session", API_ID, API_HASH)
 
 # ---------- STATE ----------
-mode = None               # "masak" atau "mancing"
-current_payload = None    # untuk masak → string perintah
-mancing_lokasi = None     # untuk mancing → nama lokasi
+mode = None
+current_payload = None    # untuk masak
+mancing_lokasi = None     # untuk mancing
 running = False
 sender_task = None
 task_lock = asyncio.Lock()
@@ -91,22 +90,29 @@ async def sender_loop():
                         timeout=5
                     )
 
-                    # 3. Klik tombol Tarik
+                    # 3. Cari tombol Tarik
                     if resp.buttons:
-                        try:
-                            await resp.click(text="Tarik Alat Pancing")
-                            print(f"[{ts()}] [MANCING] {mancing_lokasi} → Tarik Alat Pancing")
-                        except Exception as e:
-                            print(f"[{ts()}] [MANCING] Klik gagal: {e}")
+                        clicked = False
+                        for row in resp.buttons:
+                            for button in row:
+                                if "tarik" in (button.text or "").lower():
+                                    await resp.click(text=button.text)
+                                    print(f"[{ts()}] [MANCING] Klik tombol: {button.text}")
+                                    clicked = True
+                                    break
+                            if clicked:
+                                break
+                        if not clicked:
+                            print(f"[{ts()}] [MANCING] Tidak ada tombol 'Tarik' ditemukan.")
                     else:
-                        print(f"[{ts()}] [MANCING] Tidak ada tombol di pesan balasan")
+                        print(f"[{ts()}] [MANCING] Balasan bot tidak ada tombol.")
 
                 except asyncio.TimeoutError:
                     print(f"[{ts()}] [MANCING] Timeout tunggu balasan bot.")
                 except Exception as e:
                     print(f"[{ts()}] [ERROR mancing] {e}")
 
-            # jeda antar aksi
+            # delay antar aksi
             try:
                 await asyncio.sleep(INTERVAL)
             except asyncio.CancelledError:
@@ -126,62 +132,74 @@ async def saved_handler(event):
         return
     lowered = text.lower()
 
-    # Command: START MASAK
+    # Mode Masak
+    if lowered == "masak":
+        mode = "masak"
+        await event.reply("👨‍🍳 Masak apa? Kirim perintah/emoji yang mau diloop.")
+        return
+
     if lowered == "start masak":
         if not current_payload:
-            await event.reply("❗ Payload masak kosong. Kirim perintah/emoji dulu.")
+            await event.reply("❗ Belum ada payload masak. Kirim dulu teks/emoji.")
             return
         mode = "masak"
         running = True
         await safe_start_sender()
-        await event.reply(f"▶️ Mulai loop MASAK: {current_payload} setiap {INTERVAL}s")
+        await event.reply(f"▶️ Loop MASAK dimulai: {current_payload} tiap {INTERVAL}s")
         print(f"[{ts()}] START MASAK: {current_payload}")
         return
 
-    # Command: START MANCING
-    if lowered == "start mancing":
+    # Mode Mancing
+    if lowered == "mancing":
         mode = "mancing"
         mancing_lokasi = None
-        await event.reply("🎣 Mancing dimana? Kirim nama lokasi (contoh: Sungai Badabu).")
-        print(f"[{ts()}] Menunggu lokasi mancing...")
+        await event.reply("🎣 Mancing dimana? Kirim nama lokasi.")
         return
 
-    # Command: STOP
+    if lowered == "start mancing":
+        if not mancing_lokasi:
+            await event.reply("❗ Belum ada lokasi. Kirim nama lokasi dulu.")
+            return
+        mode = "mancing"
+        running = True
+        await safe_start_sender()
+        await event.reply(f"▶️ Loop MANCING dimulai di {mancing_lokasi}, tiap {INTERVAL}s")
+        print(f"[{ts()}] START MANCING: {mancing_lokasi}")
+        return
+
+    # Stop / Reset
     if lowered == "stop":
         if not running:
             await event.reply("⏹ Sudah berhenti.")
             return
         running = False
         await safe_stop_sender()
-        await event.reply("⏹ Loop DIBERHENTIKAN")
+        await event.reply("⏹ Loop dihentikan.")
         print(f"[{ts()}] STOP.")
         return
 
-    # Command: RESET
     if lowered == "reset":
         running = False
         await safe_stop_sender()
         mode = None
         current_payload = None
         mancing_lokasi = None
-        await event.reply("♻️ Payload direset. Kirim baru lagi.")
+        await event.reply("♻️ Reset selesai. Kirim 'Masak' atau 'Mancing' lagi.")
         print(f"[{ts()}] RESET.")
         return
 
-    # Payload utk MASAK
-    if mode != "mancing":
+    # Set payload untuk masak
+    if mode == "masak":
         current_payload = text
-        await event.reply(f"✅ Payload MASAK disimpan: {repr(current_payload)}\nKetik 'start masak' untuk mulai.")
-        print(f"[{ts()}] Payload masak diset -> {repr(current_payload)}")
+        await event.reply(f"✅ Payload MASAK diset: {current_payload}\nKetik 'start masak' untuk mulai.")
+        print(f"[{ts()}] Payload masak diset: {current_payload}")
         return
 
-    # Payload utk MANCING → lokasi
+    # Set lokasi untuk mancing
     if mode == "mancing" and not mancing_lokasi:
         mancing_lokasi = text
-        running = True
-        await safe_start_sender()
-        await event.reply(f"🎣 Lokasi MANCING diset: {mancing_lokasi}\n▶️ Loop mancing dimulai tiap {INTERVAL}s")
-        print(f"[{ts()}] Lokasi mancing -> {mancing_lokasi}")
+        await event.reply(f"✅ Lokasi MANCING diset: {mancing_lokasi}\nKetik 'start mancing' untuk mulai.")
+        print(f"[{ts()}] Lokasi mancing diset: {mancing_lokasi}")
         return
 
 # Stop otomatis kalau energi habis
@@ -203,13 +221,12 @@ async def main():
 
     instr = (
         "Bot siap ✅\n\n"
-        "Command:\n"
-        "- Kirim teks/perintah/emoji → jadi payload MASAK\n"
-        "- 'start masak' → mulai loop masak\n"
-        "- 'start mancing' → pilih lokasi lalu loop mancing\n"
-        "- 'stop' → stop loop\n"
-        "- 'reset' → reset payload/lokasi\n\n"
-        "Note: target kirim = @" + BOT_USERNAME
+        "Command di Saved Messages:\n"
+        "- 'Masak' → pilih payload, lalu 'start masak'\n"
+        "- 'Mancing' → pilih lokasi, lalu 'start mancing'\n"
+        "- 'stop' → hentikan loop\n"
+        "- 'reset' → reset mode/payload\n\n"
+        f"Target kirim = @{BOT_USERNAME}"
     )
     await send_to_saved(instr)
     print(f"[{ts()}] Instruksi dikirim ke Saved Messages.")
