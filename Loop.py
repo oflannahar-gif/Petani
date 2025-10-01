@@ -3,6 +3,7 @@
 #   - 'Masak' → pilih menu, loop kirim kode masak tiap 2 detik
 #   - 'Mancing' → pilih lokasi, loop kirim lokasi + klik "Tarik Alat Pancing"
 #   - Pause/Resume/Stop manual
+#   - Hentikan loop otomatis jika energi habis
 #
 # Requirements:
 #   pip install telethon python-dotenv
@@ -116,29 +117,38 @@ async def cmd_owner(event):
 # ---------------- handler bot game ----------------
 @client.on(events.NewMessage(from_users=BOT_USERNAME))
 async def bot_reply(event):
-    global lokasi_mancing, auto_loop, paused, mode
-
-    if mode != "mancing" or not auto_loop or not lokasi_mancing or paused:
-        return
+    global lokasi_mancing, kode_masak, auto_loop, paused, mode
 
     text = event.raw_text or ""
     print(f"[BOT] {text[:60]}...")
 
-    # klik tombol "Tarik Alat Pancing" kalau ada
-    if event.buttons:
-        for row in event.buttons:
-            for button in row:
-                if "Tarik Alat Pancing" in button.text:
-                    await human_sleep()
-                    await button.click()
-                    print(">> Klik 'Tarik Alat Pancing'")
-                    return
+    # ====== DETEKSI ENERGI HABIS ======
+    if "kamu tidak memiliki cukup energi" in text.lower() and "/tidur" in text.lower():
+        print("⚠️ Energi habis! Semua loop dihentikan.")
+        auto_loop = False
+        kode_masak = None
+        lokasi_mancing = None
+        paused = False
+        mode = None
+        await client.send_message(OWNER_ID, "⚠️ Energi habis! Loop otomatis dihentikan.")
+        return
 
-    # kalau ada hasil tangkapan, kirim ulang lokasi
-    if "kamu mendapatkan" in text.lower():
-        await human_sleep(1, 2)
-        await client.send_message(BOT_USERNAME, lokasi_mancing)
-        print(f">> Kirim ulang lokasi: {lokasi_mancing}")
+    # klik tombol "Tarik Alat Pancing" kalau ada
+    if mode == "mancing" and auto_loop and lokasi_mancing and not paused:
+        if event.buttons:
+            for row in event.buttons:
+                for button in row:
+                    if "Tarik Alat Pancing" in button.text:
+                        await human_sleep()
+                        await button.click()
+                        print(">> Klik 'Tarik Alat Pancing'")
+                        return
+
+        # kalau ada hasil tangkapan, kirim ulang lokasi
+        if "kamu mendapatkan" in text.lower():
+            await human_sleep(1, 2)
+            await client.send_message(BOT_USERNAME, lokasi_mancing)
+            print(f">> Kirim ulang lokasi: {lokasi_mancing}")
 
 # ---------------- startup ----------------
 async def main():
@@ -158,3 +168,7 @@ async def main():
         print("❌ Gagal kirim ke Saved Messages:", e)
 
     await client.run_until_disconnected()
+
+if __name__ == "__main__":
+    with client:
+        client.loop.run_until_complete(main())
