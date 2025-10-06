@@ -204,6 +204,16 @@ async def cmd_owner(event):
         paused = False
         await event.reply("Mau berapa kali grinding? 🔄")
 
+    elif lmsg == "macul":
+        mode = "macul"
+        tanaman_dipilih = None
+        jumlah_tanam = 0
+        macul_loop = False
+        auto_loop = False
+        paused = False
+        load_tanaman()
+        await event.reply("🌱 Mau tanam apa?")
+
     elif lmsg in ("stop", "stop_all"):
         auto_loop = False
         macul_loop = False
@@ -248,6 +258,7 @@ async def cmd_owner(event):
             await event.reply("🌾 Loop Macul dihentikan.")
         else:
             await event.reply("❗ Tidak ada loop Macul yang aktif.")
+
 
     else:
         # mode masak
