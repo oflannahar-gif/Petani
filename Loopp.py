@@ -149,6 +149,7 @@ async def loop_kebun():
 
             print(">> Panen")
             await client.send_message(BOT_USERNAME, "/ambilPanen")
+            await asyncio.sleep(3)  # 🌾 jeda 3 detik sebelum mulai tanam lagi
 
         except Exception as e:
             print("❌ Error loop kebun:", e)
