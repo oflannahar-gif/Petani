@@ -204,15 +204,51 @@ async def cmd_owner(event):
         paused = False
         await event.reply("Mau berapa kali grinding? 🔄")
 
-    elif lmsg == "macul":
-        mode = "macul"
-        tanaman_dipilih = None
-        jumlah_tanam = 0
-        macul_loop = False
+    elif lmsg in ("stop", "stop_all"):
         auto_loop = False
+        macul_loop = False
+        kode_masak = None
+        lokasi_mancing = None
         paused = False
-        load_tanaman()
-        await event.reply("🌱 Mau tanam apa?")
+        mode = None
+        await event.reply("⏹ Semua loop dihentikan.")
+
+    elif lmsg == "stop_masak":
+        if mode == "masak" or kode_masak:
+            kode_masak = None
+            auto_loop = False
+            mode = None
+            await event.reply("🍳 Loop Masak dihentikan.")
+        else:
+            await event.reply("❗ Tidak ada loop Masak yang aktif.")
+
+    elif lmsg == "stop_mancing":
+        if mode == "mancing" or lokasi_mancing:
+            lokasi_mancing = None
+            auto_loop = False
+            mode = None
+            await event.reply("🎣 Loop Mancing dihentikan.")
+        else:
+            await event.reply("❗ Tidak ada loop Mancing yang aktif.")
+
+    elif lmsg == "stop_grinding":
+        if mode == "grinding" or grinding_loops > 0:
+            auto_loop = False
+            mode = None
+            grinding_loops = 0
+            await event.reply("⚙️ Loop Grinding dihentikan.")
+        else:
+            await event.reply("❗ Tidak ada loop Grinding yang aktif.")
+
+    elif lmsg == "stop_macul":
+        if mode == "macul" or macul_loop:
+            macul_loop = False
+            auto_loop = False
+            mode = None
+            await event.reply("🌾 Loop Macul dihentikan.")
+        else:
+            await event.reply("❗ Tidak ada loop Macul yang aktif.")
+
 
     elif lmsg == "stop":
         auto_loop = False
