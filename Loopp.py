@@ -1,4 +1,4 @@
-# auto_game.py — Auto Mancing, Masak & Grinding di Kampung Maifam
+# auto_game.py — Auto Mancing, Masak, Macul & Grinding di Kampung Maifam
 # Features:
 #   - 'Masak' → pilih menu, loop kirim kode masak tiap 2 detik
 #   - 'Mancing' → pilih lokasi, loop kirim lokasi + klik "Tarik Alat Pancing"
@@ -9,6 +9,7 @@
 #
 # Requirements:
 #   pip install telethon python-dotenv
+# (Versi dengan sistem Queue agar pesan tidak dikirim bersamaan)
 
 import os
 import asyncio
@@ -39,6 +40,24 @@ if SESSION_STRING:
     client = TelegramClient(StringSession(SESSION_STRING), API_ID, API_HASH)
 else:
     client = TelegramClient("loop_session", API_ID, API_HASH)
+
+# ---------------- QUEUE SYSTEM ----------------
+message_queue = asyncio.Queue()
+
+async def safe_send(msg, to=None):
+    """Masukkan pesan ke queue"""
+    await message_queue.put((msg, to or BOT_USERNAME))
+
+async def message_worker():
+    """Kirim pesan satu per satu dengan delay aman"""
+    while True:
+        msg, dest = await message_queue.get()
+        try:
+            await client.send_message(dest, msg)
+            print(f"[SEND] → {dest}: {msg}")
+        except Exception as e:
+            print(f"[!] Gagal kirim {msg} ke {dest}: {e}")
+        await asyncio.sleep(2)  # jeda aman antar pesan
 
 # ---------------- state ----------------
 mode = None  # "mancing" / "masak" / "grinding" / "macul"
@@ -92,7 +111,7 @@ async def loop_masak():
             continue
         try:
             print(f">> Mengirim kode masak: {kode_masak}")
-            await client.send_message(BOT_USERNAME, kode_masak)
+            await safe_send(kode_masak)
             await asyncio.sleep(2)
         except Exception as e:
             print("❌ Error loop masak:", e)
@@ -113,7 +132,7 @@ async def loop_grinding():
                 if not auto_loop:
                     break
                 print(f">> [Grinding {grinding_count+1}/{grinding_loops}] Kirim: {cmd}")
-                await client.send_message(BOT_USERNAME, cmd)
+                await safe_send(cmd)
                 await asyncio.sleep(2)
             grinding_count += 1
         except Exception as e:
@@ -122,7 +141,7 @@ async def loop_grinding():
 
     if grinding_count >= grinding_loops:
         auto_loop = False
-        await client.send_message(OWNER_ID, f"✅ Grinding selesai ({grinding_loops}x siklus)")
+        await safe_send(f"✅ Grinding selesai ({grinding_loops}x siklus)", OWNER_ID)
         print(f">> Grinding selesai ({grinding_loops}x siklus)")
 
 # ---------------- loop macul ----------------
@@ -130,30 +149,27 @@ async def loop_macul():
     global auto_loop, macul_loop, tanaman_dipilih, jumlah_tanam, paused
     waktu_tanam = tanaman_data.get(tanaman_dipilih, 180)
     print(f">> Mulai auto macul: {tanaman_dipilih} ({jumlah_tanam} pohon, {waktu_tanam}s)")
-    await client.send_message(OWNER_ID, f"🌱 Mulai auto Macul: {tanaman_dipilih} ({jumlah_tanam} pohon, {waktu_tanam}s)")
+    await safe_send(f"🌱 Mulai auto Macul: {tanaman_dipilih} ({jumlah_tanam} pohon, {waktu_tanam}s)", OWNER_ID)
 
     while auto_loop and macul_loop:
         if paused:
             await asyncio.sleep(1)
             continue
-
         try:
             cmd_tanam = f"/tanam_{tanaman_dipilih}_{jumlah_tanam}"
             print(f">> Tanam: {cmd_tanam}")
-            await client.send_message(BOT_USERNAME, cmd_tanam)
+            await safe_send(cmd_tanam)
             await asyncio.sleep(2)
 
             print(">> Siram")
-            await client.send_message(BOT_USERNAME, "/siram")
+            await safe_send("/siram")
             await asyncio.sleep(waktu_tanam)  # waktu tunggu panen
 
             print(">> Panen")
-            await client.send_message(BOT_USERNAME, "/ambilPanen")
-            await asyncio.sleep(3)  # 🌾 jeda 3 detik sebelum mulai tanam lagi
-
+            await safe_send("/ambilPanen")
+            await asyncio.sleep(3)  # jeda sebelum tanam lagi
         except Exception as e:
             print("❌ Error loop macul:", e)
-
         await asyncio.sleep(2)
 
 # ---------------- handler owner ----------------
@@ -223,7 +239,7 @@ async def cmd_owner(event):
             paused = False
             await event.reply(f"Mulai auto-mancing di {lokasi_mancing} 🎣")
             await human_sleep()
-            await client.send_message(BOT_USERNAME, lokasi_mancing)
+            await safe_send(lokasi_mancing)
 
         # mode grinding
         elif mode == "grinding" and grinding_loops == 0:
@@ -238,7 +254,6 @@ async def cmd_owner(event):
 
         # mode macul
         elif mode == "macul":
-            # pilih tanaman
             if not tanaman_dipilih:
                 if msg in tanaman_data:
                     tanaman_dipilih = msg
@@ -272,7 +287,7 @@ async def bot_reply(event):
         lokasi_mancing = None
         paused = False
         mode = None
-        await client.send_message(OWNER_ID, "⚠️ Energi habis! Loop otomatis dihentikan.")
+        await safe_send("⚠️ Energi habis! Loop otomatis dihentikan.", OWNER_ID)
         return
 
     if mode == "mancing" and auto_loop and lokasi_mancing and not paused:
@@ -286,13 +301,16 @@ async def bot_reply(event):
                         return
         if "kamu mendapatkan" in text.lower():
             await human_sleep(1, 2)
-            await client.send_message(BOT_USERNAME, lokasi_mancing)
+            await safe_send(lokasi_mancing)
             print(f">> Kirim ulang lokasi: {lokasi_mancing}")
 
 # ---------------- startup ----------------
 async def main():
     await client.start(phone=PHONE)
     logger.info("Client started")
+
+    asyncio.create_task(message_worker())  # Jalankan worker queue
+
     msg_intro = ("Bot siap ✅\n\nCommand di Saved Messages:\n"
                  "- 'Masak' → pilih menu\n"
                  "- 'Mancing' → pilih lokasi\n"
@@ -301,7 +319,7 @@ async def main():
                  "- 'stop' → hentikan loop")
     print(msg_intro)
     try:
-        await client.send_message("me", msg_intro)
+        await safe_send(msg_intro, "me")
         print(">> Pesan awal dikirim ke Saved Messages")
     except Exception as e:
         print("❌ Gagal kirim ke Saved Messages:", e)
