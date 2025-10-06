@@ -3,7 +3,7 @@
 #   - 'Masak' → pilih menu, loop kirim kode masak tiap 2 detik
 #   - 'Mancing' → pilih lokasi, loop kirim lokasi + klik "Tarik Alat Pancing"
 #   - 'Grinding' → kirim urutan tanam-siram-panen berulang sesuai jumlah input
-#   - 'Kebun' → otomatis tanam, siram, tunggu waktu panen dari tanaman.txt
+#   - 'Macul' → otomatis tanam, siram, tunggu waktu panen dari tanaman.txt
 #   - Pause/Resume/Stop manual
 #   - Hentikan loop otomatis jika energi habis
 #
@@ -41,7 +41,7 @@ else:
     client = TelegramClient("loop_session", API_ID, API_HASH)
 
 # ---------------- state ----------------
-mode = None  # "mancing" / "masak" / "grinding" / "kebun"
+mode = None  # "mancing" / "masak" / "grinding" / "macul"
 lokasi_mancing = None
 kode_masak = None
 auto_loop = False
@@ -56,11 +56,11 @@ grinding_sequence = [
     "/kebunGuild_PanenSekarang"
 ]
 
-# kebun state
+# macul state
 tanaman_data = {}  # {"Wortel":185, ...}
 tanaman_dipilih = None
 jumlah_tanam = 0
-kebun_loop = False
+macul_loop = False
 
 async def human_sleep(min_s=1.0, max_s=1.5):
     await asyncio.sleep(random.uniform(min_s, max_s))
@@ -125,14 +125,14 @@ async def loop_grinding():
         await client.send_message(OWNER_ID, f"✅ Grinding selesai ({grinding_loops}x siklus)")
         print(f">> Grinding selesai ({grinding_loops}x siklus)")
 
-# ---------------- loop kebun ----------------
-async def loop_kebun():
-    global auto_loop, kebun_loop, tanaman_dipilih, jumlah_tanam, paused
+# ---------------- loop macul ----------------
+async def loop_macul():
+    global auto_loop, macul_loop, tanaman_dipilih, jumlah_tanam, paused
     waktu_tanam = tanaman_data.get(tanaman_dipilih, 180)
-    print(f">> Mulai auto Kebun: {tanaman_dipilih} ({jumlah_tanam} pohon, {waktu_tanam}s)")
-    await client.send_message(OWNER_ID, f"🌱 Mulai auto Kebun: {tanaman_dipilih} ({jumlah_tanam} pohon, {waktu_tanam}s)")
+    print(f">> Mulai auto macul: {tanaman_dipilih} ({jumlah_tanam} pohon, {waktu_tanam}s)")
+    await client.send_message(OWNER_ID, f"🌱 Mulai auto Macul: {tanaman_dipilih} ({jumlah_tanam} pohon, {waktu_tanam}s)")
 
-    while auto_loop and kebun_loop:
+    while auto_loop and macul_loop:
         if paused:
             await asyncio.sleep(1)
             continue
@@ -152,7 +152,7 @@ async def loop_kebun():
             await asyncio.sleep(3)  # 🌾 jeda 3 detik sebelum mulai tanam lagi
 
         except Exception as e:
-            print("❌ Error loop kebun:", e)
+            print("❌ Error loop macul:", e)
 
         await asyncio.sleep(2)
 
@@ -160,7 +160,7 @@ async def loop_kebun():
 @client.on(events.NewMessage(from_users=OWNER_ID))
 async def cmd_owner(event):
     global mode, lokasi_mancing, kode_masak, auto_loop, paused
-    global grinding_loops, tanaman_dipilih, jumlah_tanam, kebun_loop
+    global grinding_loops, tanaman_dipilih, jumlah_tanam, macul_loop
 
     msg = (event.raw_text or "").strip()
     lmsg = msg.lower()
@@ -188,11 +188,11 @@ async def cmd_owner(event):
         paused = False
         await event.reply("Mau berapa kali grinding? 🔄")
 
-    elif lmsg == "kebun":
-        mode = "kebun"
+    elif lmsg == "macul":
+        mode = "macul"
         tanaman_dipilih = None
         jumlah_tanam = 0
-        kebun_loop = False
+        macul_loop = False
         auto_loop = False
         paused = False
         load_tanaman()
@@ -200,7 +200,7 @@ async def cmd_owner(event):
 
     elif lmsg == "stop":
         auto_loop = False
-        kebun_loop = False
+        macul_loop = False
         kode_masak = None
         lokasi_mancing = None
         paused = False
@@ -236,8 +236,8 @@ async def cmd_owner(event):
             else:
                 await event.reply("❗ Masukkan angka jumlah loop grinding.")
 
-        # mode kebun
-        elif mode == "kebun":
+        # mode macul
+        elif mode == "macul":
             # pilih tanaman
             if not tanaman_dipilih:
                 if msg in tanaman_data:
@@ -249,17 +249,17 @@ async def cmd_owner(event):
                 if msg.isdigit():
                     jumlah_tanam = int(msg)
                     auto_loop = True
-                    kebun_loop = True
+                    macul_loop = True
                     paused = False
-                    await event.reply(f"Mulai kebun otomatis {tanaman_dipilih} ({jumlah_tanam} pohon).")
-                    asyncio.create_task(loop_kebun())
+                    await event.reply(f"Mulai Macul otomatis {tanaman_dipilih} ({jumlah_tanam} pohon).")
+                    asyncio.create_task(loop_macul())
                 else:
                     await event.reply("Masukkan angka jumlah tanaman yang valid.")
 
 # ---------------- handler bot game ----------------
 @client.on(events.NewMessage(from_users=BOT_USERNAME))
 async def bot_reply(event):
-    global lokasi_mancing, kode_masak, auto_loop, paused, mode, kebun_loop
+    global lokasi_mancing, kode_masak, auto_loop, paused, mode, macul_loop
 
     text = event.raw_text or ""
     print(f"[BOT] {text[:60]}...")
@@ -267,7 +267,7 @@ async def bot_reply(event):
     if "kamu tidak memiliki cukup energi" in text.lower() and "/tidur" in text.lower():
         print("⚠️ Energi habis! Semua loop dihentikan.")
         auto_loop = False
-        kebun_loop = False
+        macul_loop = False
         kode_masak = None
         lokasi_mancing = None
         paused = False
@@ -297,7 +297,7 @@ async def main():
                  "- 'Masak' → pilih menu\n"
                  "- 'Mancing' → pilih lokasi\n"
                  "- 'Grinding' → tanam+siram+panen berulang\n"
-                 "- 'Kebun' → otomatis tanam, siram, tunggu panen dari tanaman.txt\n"
+                 "- 'Macul' → otomatis tanam, siram, tunggu panen dari tanaman.txt\n"
                  "- 'stop' → hentikan loop")
     print(msg_intro)
     try:
