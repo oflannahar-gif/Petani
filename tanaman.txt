@@ -1,0 +1,7 @@
+Wortel=185
+Kentang=245
+Melon=1505
+KacangTanah=125
+
+Tomat=240
+Jagung=300
