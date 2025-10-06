@@ -327,19 +327,30 @@ async def bot_reply(event):
         await safe_send("⚠️ Energi habis! Loop otomatis dihentikan.", OWNER_ID)
         return
 
-    if mode == "mancing" and auto_loop and lokasi_mancing and not paused:
-        if event.buttons:
-            for row in event.buttons:
-                for button in row:
-                    if "Tarik Alat Pancing" in button.text:
-                        await human_sleep()
-                        await button.click()
-                        print(">> Klik 'Tarik Alat Pancing'")
-                        return
-        if "kamu mendapatkan" in text.lower():
-            await human_sleep(1, 2)
-            await safe_send(lokasi_mancing)
-            print(f">> Kirim ulang lokasi: {lokasi_mancing}")
+if mode == "mancing" and auto_loop and lokasi_mancing and not paused:
+    # 🔹 Klik tombol "Tarik Alat Pancing" jika muncul
+    if event.buttons:
+        for row in event.buttons:
+            for button in row:
+                if "Tarik Alat Pancing" in button.text:
+                    await human_sleep()
+                    await button.click()
+                    print(">> Klik 'Tarik Alat Pancing'")
+                    return
+
+    # 🔹 Jika muncul teks hasil tangkapan
+    if "kamu mendapatkan" in text.lower():
+        await human_sleep(1, 2)
+        await safe_send(lokasi_mancing)
+        print(f">> Kirim ulang lokasi setelah hasil tangkapan: {lokasi_mancing}")
+        return
+
+    # 🔹 Jika tidak ada hasil & tidak ada tombol setelah 5 detik, kirim ulang lokasi
+    await human_sleep(5)
+    print("⚠️ Tidak ada respon hasil pancing, kirim ulang lokasi.")
+    await safe_send(lokasi_mancing)
+    print(f">> Kirim ulang lokasi: {lokasi_mancing}")
+
 
 # ---------------- startup ----------------
 async def main():
