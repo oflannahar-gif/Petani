@@ -249,16 +249,6 @@ async def cmd_owner(event):
         else:
             await event.reply("❗ Tidak ada loop Macul yang aktif.")
 
-
-    elif lmsg == "stop":
-        auto_loop = False
-        macul_loop = False
-        kode_masak = None
-        lokasi_mancing = None
-        paused = False
-        mode = None
-        await event.reply("⏹ Semua loop dihentikan")
-
     else:
         # mode masak
         if mode == "masak" and not kode_masak:
