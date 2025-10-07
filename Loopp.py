@@ -1,15 +1,8 @@
-# auto_game.py — Auto Mancing, Masak, Macul & Grinding di Kampung Maifam
-# Features:
-#   - 'Masak' → pilih menu, loop kirim kode masak tiap 2 detik
-#   - 'Mancing' → pilih lokasi, loop kirim lokasi + klik "Tarik Alat Pancing"
-#   - 'Grinding' → kirim urutan tanam-siram-panen berulang sesuai jumlah input
-#   - 'Macul' → otomatis tanam, siram, tunggu waktu panen dari tanaman.txt
-#   - Pause/Resume/Stop manual
-#   - Hentikan loop otomatis jika energi habis
-#
-# Requirements:
-#   pip install telethon python-dotenv
-# (Versi dengan sistem Queue agar pesan tidak dikirim bersamaan)
+# auto_game_multi.py — versi multi-loop fix
+# ✅ Multi loop berjalan bersamaan
+# ✅ Klik "Tarik Alat Pancing" urut & benar
+# ✅ Stop otomatis jika energi habis
+# ✅ Sistem Queue aman antar pesan
 
 import os
 import asyncio
@@ -57,277 +50,160 @@ async def message_worker():
             print(f"[SEND] → {dest}: {msg}")
         except Exception as e:
             print(f"[!] Gagal kirim {msg} ke {dest}: {e}")
-        await asyncio.sleep(2)  # jeda aman antar pesan
+        await asyncio.sleep(2)
 
-# ---------------- state ----------------
-mode = None  # "mancing" / "masak" / "grinding" / "macul"
-lokasi_mancing = None
-kode_masak = None
-auto_loop = False
-paused = False
+async def human_sleep(min_s=1.0, max_s=1.5):
+    await asyncio.sleep(random.uniform(min_s, max_s))
 
-# grinding state
-grinding_loops = 0
-grinding_count = 0
-grinding_sequence = [
+# ---------------- STATE PER MODE ----------------
+state = {
+    "masak": {"aktif": False, "kode": None},
+    "mancing": {"aktif": False, "lokasi": None},
+    "grinding": {"aktif": False, "loops": 0, "count": 0},
+    "macul": {"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180}
+}
+
+# ---------------- LOOP MASAK ----------------
+async def loop_masak():
+    data = state["masak"]
+    print(">> Loop Masak dimulai")
+    while data["aktif"] and data["kode"]:
+        await safe_send(data["kode"])
+        await asyncio.sleep(2)
+    print(">> Loop Masak berhenti")
+
+# ---------------- LOOP MANCING ----------------
+async def loop_mancing():
+    data = state["mancing"]
+    print(f">> Loop Mancing dimulai di {data['lokasi']}")
+    await safe_send(data["lokasi"])  # kirim pertama
+    while data["aktif"]:
+        await asyncio.sleep(1)
+    print(">> Loop Mancing berhenti")
+
+# ---------------- LOOP GRINDING ----------------
+grinding_seq = [
     "/tanamGuild_KacangTanah_6000",
     "/KebunGuild_Siram",
     "/kebunGuild_PanenSekarang"
 ]
 
-# macul state
-tanaman_data = {}  # {"Wortel":185, ...}
-tanaman_dipilih = None
-jumlah_tanam = 0
-macul_loop = False
-
-async def human_sleep(min_s=1.0, max_s=1.5):
-    await asyncio.sleep(random.uniform(min_s, max_s))
-
-# ---------------- load tanaman.txt ----------------
-def load_tanaman():
-    global tanaman_data
-    tanaman_data.clear()
-    if not os.path.exists("tanaman.txt"):
-        print("⚠️ File tanaman.txt tidak ditemukan.")
-        return
-    with open("tanaman.txt", "r", encoding="utf-8") as f:
-        for line in f:
-            if "=" in line:
-                nama, waktu = line.strip().split("=")
-                try:
-                    tanaman_data[nama.strip()] = int(waktu.strip())
-                except ValueError:
-                    continue
-    print(f"🌿 {len(tanaman_data)} tanaman dimuat: {', '.join(tanaman_data.keys())}")
-
-# ---------------- loop masak ----------------
-async def loop_masak():
-    global auto_loop, kode_masak, paused
-    print(">> Loop Masak dimulai")
-    while auto_loop and kode_masak:
-        if paused:
-            await asyncio.sleep(1)
-            continue
-        try:
-            print(f">> Mengirim kode masak: {kode_masak}")
-            await safe_send(kode_masak)
-            await asyncio.sleep(2)
-        except Exception as e:
-            print("❌ Error loop masak:", e)
-            await asyncio.sleep(2)
-
-# ---------------- loop grinding ----------------
 async def loop_grinding():
-    global auto_loop, grinding_loops, grinding_count, paused
-    print(f">> Loop Grinding dimulai ({grinding_loops}x siklus)")
-    grinding_count = 0
-
-    while auto_loop and grinding_count < grinding_loops:
-        if paused:
-            await asyncio.sleep(1)
-            continue
-        try:
-            for cmd in grinding_sequence:
-                if not auto_loop:
-                    break
-                print(f">> [Grinding {grinding_count+1}/{grinding_loops}] Kirim: {cmd}")
-                await safe_send(cmd)
-                await asyncio.sleep(2)
-            grinding_count += 1
-        except Exception as e:
-            print("❌ Error loop grinding:", e)
+    data = state["grinding"]
+    print(f">> Loop Grinding {data['loops']}x dimulai")
+    while data["aktif"] and data["count"] < data["loops"]:
+        for cmd in grinding_seq:
+            if not data["aktif"]:
+                break
+            await safe_send(cmd)
             await asyncio.sleep(2)
+        data["count"] += 1
+        print(f">> Grinding ke-{data['count']} selesai")
+    data["aktif"] = False
+    await safe_send("✅ Grinding selesai", OWNER_ID)
 
-    if grinding_count >= grinding_loops:
-        auto_loop = False
-        await safe_send(f"✅ Grinding selesai ({grinding_loops}x siklus)", OWNER_ID)
-        print(f">> Grinding selesai ({grinding_loops}x siklus)")
-
-# ---------------- loop macul ----------------
+# ---------------- LOOP MACUL ----------------
 async def loop_macul():
-    global auto_loop, macul_loop, tanaman_dipilih, jumlah_tanam, paused
-    waktu_tanam = tanaman_data.get(tanaman_dipilih, 180)
-    print(f">> Mulai auto macul: {tanaman_dipilih} ({jumlah_tanam} pohon, {waktu_tanam}s)")
-    await safe_send(f"🌱 Mulai auto Macul: {tanaman_dipilih} ({jumlah_tanam} pohon, {waktu_tanam}s)", OWNER_ID)
-
-    while auto_loop and macul_loop:
-        if paused:
-            await asyncio.sleep(1)
-            continue
-        try:
-            cmd_tanam = f"/tanam_{tanaman_dipilih}_{jumlah_tanam}"
-            print(f">> Tanam: {cmd_tanam}")
-            await safe_send(cmd_tanam)
-            await asyncio.sleep(2)
-
-            print(">> Siram")
-            await safe_send("/siram")
-            await asyncio.sleep(waktu_tanam)  # waktu tunggu panen
-
-            print(">> Panen")
-            await safe_send("/ambilPanen")
-            await asyncio.sleep(3)  # jeda sebelum tanam lagi
-        except Exception as e:
-            print("❌ Error loop macul:", e)
+    data = state["macul"]
+    print(f">> Mulai auto Macul {data['tanaman']} ({data['jumlah']} pohon, {data['durasi']}s)")
+    while data["aktif"]:
+        await safe_send(f"/tanam_{data['tanaman']}_{data['jumlah']}")
         await asyncio.sleep(2)
+        await safe_send("/siram")
+        await asyncio.sleep(data["durasi"])
+        await safe_send("/ambilPanen")
+        await asyncio.sleep(3)
+    print(">> Loop Macul berhenti")
 
-# ---------------- handler owner ----------------
+# ---------------- COMMAND HANDLER ----------------
 @client.on(events.NewMessage(from_users=OWNER_ID))
 async def cmd_owner(event):
-    global mode, lokasi_mancing, kode_masak, auto_loop, paused
-    global grinding_loops, tanaman_dipilih, jumlah_tanam, macul_loop
-
     msg = (event.raw_text or "").strip()
     lmsg = msg.lower()
 
     print(f">> INPUT OWNER: {msg}")
 
+    # MASAK
     if lmsg == "masak":
-        mode = "masak"
-        kode_masak = None
-        auto_loop = False
-        paused = False
-        await event.reply("Mau Masak apa?")
-
-    elif lmsg == "mancing":
-        mode = "mancing"
-        lokasi_mancing = None
-        auto_loop = False
-        paused = False
-        await event.reply("Mancing dimana? 🎣")
-
-    elif lmsg == "grinding":
-        mode = "grinding"
-        grinding_loops = 0
-        auto_loop = False
-        paused = False
-        await event.reply("Mau berapa kali grinding? 🔄")
-
-    elif lmsg == "macul":
-        mode = "macul"
-        tanaman_dipilih = None
-        jumlah_tanam = 0
-        macul_loop = False
-        auto_loop = False
-        paused = False
-        load_tanaman()
-        await event.reply("🌱 Mau tanam apa?")
-
-    elif lmsg in ("stop", "stop_all"):
-        auto_loop = False
-        macul_loop = False
-        kode_masak = None
-        lokasi_mancing = None
-        paused = False
-        mode = None
-        await event.reply("⏹ Semua loop dihentikan.")
-
-    elif lmsg == "stop_masak":
-        if mode == "masak" or kode_masak:
-            kode_masak = None
-            auto_loop = False
-            mode = None
-            await event.reply("🍳 Loop Masak dihentikan.")
-        else:
-            await event.reply("❗ Tidak ada loop Masak yang aktif.")
-
-    elif lmsg == "stop_mancing":
-        if mode == "mancing" or lokasi_mancing:
-            lokasi_mancing = None
-            auto_loop = False
-            mode = None
-            await event.reply("🎣 Loop Mancing dihentikan.")
-        else:
-            await event.reply("❗ Tidak ada loop Mancing yang aktif.")
-
-    elif lmsg == "stop_grinding":
-        if mode == "grinding" or grinding_loops > 0:
-            auto_loop = False
-            mode = None
-            grinding_loops = 0
-            await event.reply("⚙️ Loop Grinding dihentikan.")
-        else:
-            await event.reply("❗ Tidak ada loop Grinding yang aktif.")
-
-    elif lmsg == "stop_macul":
-        if mode == "macul" or macul_loop:
-            macul_loop = False
-            auto_loop = False
-            mode = None
-            await event.reply("🌾 Loop Macul dihentikan.")
-        else:
-            await event.reply("❗ Tidak ada loop Macul yang aktif.")
-
-
-    else:
-        # mode masak
-        if mode == "masak" and not kode_masak:
-            kode_masak = msg
-            auto_loop = True
-            paused = False
-            await event.reply(f"Mulai auto-masak: {kode_masak}")
-            asyncio.create_task(loop_masak())
-
-        # mode mancing
-        elif mode == "mancing" and not lokasi_mancing:
-            lokasi_mancing = msg
-            auto_loop = True
-            paused = False
-            await event.reply(f"Mulai auto-mancing di {lokasi_mancing} 🎣")
-            await human_sleep()
-            await safe_send(lokasi_mancing)
-
-        # mode grinding
-        elif mode == "grinding" and grinding_loops == 0:
-            if msg.isdigit():
-                grinding_loops = int(msg)
-                auto_loop = True
-                paused = False
-                await event.reply(f"Mulai grinding sebanyak {grinding_loops}x siklus 🔄")
-                asyncio.create_task(loop_grinding())
-            else:
-                await event.reply("❗ Masukkan angka jumlah loop grinding.")
-
-        # mode macul
-        elif mode == "macul":
-            if not tanaman_dipilih:
-                if msg in tanaman_data:
-                    tanaman_dipilih = msg
-                    await event.reply(f"Berapa jumlah {tanaman_dipilih} yang mau ditanam?")
-                else:
-                    await event.reply("🌾 Tanaman tidak ditemukan di file tanaman.txt.")
-            elif jumlah_tanam == 0:
-                if msg.isdigit():
-                    jumlah_tanam = int(msg)
-                    auto_loop = True
-                    macul_loop = True
-                    paused = False
-                    await event.reply(f"Mulai Macul otomatis {tanaman_dipilih} ({jumlah_tanam} pohon).")
-                    asyncio.create_task(loop_macul())
-                else:
-                    await event.reply("Masukkan angka jumlah tanaman yang valid.")
-
-# ---------------- handler bot game ----------------
-@client.on(events.NewMessage(from_users=BOT_USERNAME))
-async def bot_reply(event):
-    global lokasi_mancing, kode_masak, auto_loop, paused, mode, macul_loop
-
-    text = event.raw_text or ""
-    print(f"[BOT] {text[:60]}...")
-
-    if "kamu tidak memiliki cukup energi" in text.lower() and "/tidur" in text.lower():
-        print("⚠️ Energi habis! Semua loop dihentikan.")
-        auto_loop = False
-        macul_loop = False
-        kode_masak = None
-        lokasi_mancing = None
-        paused = False
-        mode = None
-        await safe_send("⚠️ Energi habis! Loop otomatis dihentikan.", OWNER_ID)
+        await event.reply("🍳 Mau masak apa?")
+        state["masak"].update({"aktif": False, "kode": None})
+        return
+    if state["masak"]["kode"] is None and lmsg.startswith("/"):
+        state["masak"]["kode"] = msg
+        state["masak"]["aktif"] = True
+        await event.reply(f"Mulai auto masak: {msg}")
+        asyncio.create_task(loop_masak())
         return
 
-    if mode == "mancing" and auto_loop and lokasi_mancing and not paused:
+    # MANCING
+    if lmsg == "mancing":
+        await event.reply("🎣 Mancing dimana?")
+        state["mancing"].update({"aktif": False, "lokasi": None})
+        return
+    if state["mancing"]["lokasi"] is None and not lmsg.startswith("/"):
+        state["mancing"]["lokasi"] = msg
+        state["mancing"]["aktif"] = True
+        await event.reply(f"Mulai auto-mancing di {msg}")
+        asyncio.create_task(loop_mancing())
+        return
+
+    # GRINDING
+    if lmsg == "grinding":
+        await event.reply("🔁 Mau berapa kali grinding?")
+        state["grinding"].update({"aktif": False, "loops": 0, "count": 0})
+        return
+    if state["grinding"]["loops"] == 0 and lmsg.isdigit():
+        state["grinding"].update({"aktif": True, "loops": int(lmsg), "count": 0})
+        await event.reply(f"Mulai grinding sebanyak {lmsg}x 🔄")
+        asyncio.create_task(loop_grinding())
+        return
+
+    # MACUL
+    if lmsg.startswith("macul"):
+        parts = lmsg.split()
+        if len(parts) == 3 and parts[2].isdigit():
+            _, tanaman, jumlah = parts
+            state["macul"].update({
+                "aktif": True,
+                "tanaman": tanaman,
+                "jumlah": int(jumlah),
+                "durasi": 180
+            })
+            await event.reply(f"Mulai auto macul {tanaman} ({jumlah} pohon)")
+            asyncio.create_task(loop_macul())
+        else:
+            await event.reply("Format: macul <tanaman> <jumlah>")
+        return
+
+    # STOP
+    if lmsg.startswith("stop"):
+        mode = lmsg.replace("stop_", "")
+        if mode in state:
+            state[mode]["aktif"] = False
+            await event.reply(f"⏹ Loop {mode} dihentikan.")
+        elif lmsg == "stop":
+            for v in state.values():
+                v["aktif"] = False
+            await event.reply("⏹ Semua loop dihentikan.")
+        return
+
+# ---------------- BOT REPLY HANDLER ----------------
+@client.on(events.NewMessage(from_users=BOT_USERNAME))
+async def bot_reply(event):
+    text = (event.raw_text or "").lower()
+    print(f"[BOT] {text[:80]}...")
+
+    # Hentikan semua loop jika energi habis
+    if "tidak memiliki cukup energi" in text:
+        for v in state.values():
+            v["aktif"] = False
+        await safe_send("⚠️ Energi habis! Semua loop dihentikan.", OWNER_ID)
+        return
+
+    # Loop mancing
+    data = state["mancing"]
+    if data["aktif"]:
+        # klik tombol "Tarik Alat Pancing"
         if event.buttons:
             for row in event.buttons:
                 for button in row:
@@ -336,31 +212,25 @@ async def bot_reply(event):
                         await button.click()
                         print(">> Klik 'Tarik Alat Pancing'")
                         return
-        if "kamu mendapatkan" in text.lower():
-            await human_sleep(1, 2)
-            await safe_send(lokasi_mancing)
-            print(f">> Kirim ulang lokasi: {lokasi_mancing}")
 
-# ---------------- startup ----------------
+        # kirim ulang lokasi setelah tangkapan
+        if "kamu mendapatkan" in text:
+            await human_sleep(2, 3)
+            await safe_send(data["lokasi"])
+            print(f">> Kirim ulang lokasi: {data['lokasi']}")
+
+# ---------------- MAIN ----------------
 async def main():
     await client.start(phone=PHONE)
     logger.info("Client started")
-
-    asyncio.create_task(message_worker())  # Jalankan worker queue
-
-    msg_intro = ("Bot siap ✅\n\nCommand di Saved Messages:\n"
-                 "- 'Masak' → pilih menu\n"
-                 "- 'Mancing' → pilih lokasi\n"
-                 "- 'Grinding' → tanam+siram+panen berulang\n"
-                 "- 'Macul' → otomatis tanam, siram, tunggu panen dari tanaman.txt\n"
-                 "- 'stop' → hentikan loop")
-    print(msg_intro)
-    try:
-        await safe_send(msg_intro, "me")
-        print(">> Pesan awal dikirim ke Saved Messages")
-    except Exception as e:
-        print("❌ Gagal kirim ke Saved Messages:", e)
-
+    asyncio.create_task(message_worker())
+    msg_intro = ("Bot siap ✅\n\nCommand:\n"
+                 "- masak → lalu kirim kode masak (/Masak_xx)\n"
+                 "- mancing → lalu kirim lokasi\n"
+                 "- grinding → lalu kirim jumlah loop\n"
+                 "- macul <tanaman> <jumlah>\n"
+                 "- stop atau stop_[mode]")
+    await safe_send(msg_intro, "me")
     await client.run_until_disconnected()
 
 if __name__ == "__main__":
