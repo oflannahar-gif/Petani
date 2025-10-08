@@ -1,21 +1,11 @@
-# auto_game_full.py — Auto Mancing, Masak, Macul (pribadi + guild) & Grinding di Kampung Maifam
-# Features:
-#   - 'Masak' → loop kirim kode masak tiap 2 detik
-#   - 'Mancing' → loop kirim lokasi + klik "Tarik Alat Pancing"
-#   - 'Grinding' → kirim urutan tanam-siram-panen berulang sesuai jumlah input
-#   - 'Macul' (pribadi) → /tanam_<tanaman>_<jumlah>, /siram, /ambilPanen
-#   - 'Macul Guild' → /tanamGuild_<tanaman>_<jumlah>, /KebunGuild_Siram, /kebunGuild_AmbilPanen
-#   - Multi-loop paralel, per-mode stop (stop_[mode]) and global stop
-#   - Auto-stop jika energi habis
-#
-# Requirements:
-#   pip install telethon python-dotenv
+# Petani.py — Auto Game Kampung Maifam
 
-# auto_game_full.py — Auto Game Kampung Maifam
 import os
 import asyncio
 import random
 import logging
+import datetime
+
 from dotenv import load_dotenv
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
@@ -69,7 +59,11 @@ state = {
     "grinding": {"aktif": False, "loops": 0, "count": 0},
     "macul": {"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180, "target": BOT_USERNAME},
     "macul_guild": {"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180},
-    "macul_global": {"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180}
+    "macul_global": {"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180},
+    "skygarden": {"aktif": False, "interval": 420},
+    "ternakkhusus": {"aktif": False}
+
+
 }
 
 grinding_sequence = [
@@ -100,7 +94,47 @@ def load_tanaman():
                     print(f"⚠️ Baris tanaman tidak valid dilewati: {line}")
     print(f"🌿 {len(tanaman_data)} tanaman dimuat: {', '.join(tanaman_data.keys())}")
 
-# ---------------- LOOPS ----------------
+
+# =============== LOOPS ================
+import datetime
+
+async def loop_ternakkhusus():
+    data = state["ternakkhusus"]
+    print(">> Loop Ternak Khusus dimulai")
+    await safe_send("🐮 Auto Ternak Khusus dimulai", OWNER_ID)
+
+    while data["aktif"]:
+        now = datetime.datetime.now()
+        # hitung waktu ke jam berikutnya
+        next_hour = (now + datetime.timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
+        wait_time = (next_hour - now).total_seconds()
+
+        print(f"Menunggu {int(wait_time // 60)} menit hingga jam {next_hour.hour}:00")
+        await asyncio.sleep(wait_time)
+
+        # cek lagi apakah masih aktif sebelum mengirim
+        if not data["aktif"]:
+            break
+
+        # kirim perintah ke bot utama
+        await safe_send("/beriMakanx")
+        print(f"[SEND] /beriMakanx → berikutnya akan dikirim pukul {next_hour.hour + 1}:00")
+
+    
+    print(">> Loop Ternak Khusus berhenti")
+    await safe_send("🐮 Auto Ternak Khusus dimatikan", OWNER_ID)
+
+
+async def loop_skygarden():
+    data = state["skygarden"]
+    print(">> Loop Sky Garden dimulai")
+    await safe_send("🌿 Auto Sky Garden dimulai", OWNER_ID)
+    while data["aktif"]:
+        await safe_send("/sg_panen")
+        await asyncio.sleep(data["interval"])  # jeda 7 menit
+    print(">> Loop Sky Garden berhenti")
+
+
 async def loop_masak():
     data = state["masak"]
     print(">> Loop Masak dimulai")
@@ -143,6 +177,7 @@ async def loop_macul(name="macul"):
             await safe_send(f"/tanam_{data['tanaman']}_{data['jumlah']}", GLOBAL_GROUP)
             await asyncio.sleep(durasi)
             await safe_send("/panen", GLOBAL_GROUP)
+            await asyncio.sleep(305)  # jeda 5 menit 5 detik sebelum loop berikutnya
         elif name in ("macul", "macul_guild"):
             cmd_tanam = f"/tanam_{data['tanaman']}_{data['jumlah']}" if name=="macul" else f"/tanamGuild_{data['tanaman']}_{data['jumlah']}"
             cmd_siram = "/siram" if name=="macul" else "/KebunGuild_Siram"
@@ -160,12 +195,45 @@ def stop_all():
     for v in state.values():
         v["aktif"] = False
 
-# ---------------- OWNER CMD ----------------
+# ================= OWNER CMD / HANDLER ================
 @client.on(events.NewMessage(from_users=OWNER_ID))
 async def cmd_owner(event):
     msg = (event.raw_text or "").strip()
     lmsg = msg.lower()
     print(f">> INPUT OWNER: {msg}")
+
+   
+    # === TERNAK KHUSUS ===
+    if lmsg in ("tk on", "/tk on"):
+        if not state["ternakkhusus"]["aktif"]:
+            state["ternakkhusus"]["aktif"] = True
+            await event.reply("🐮 Auto Ternak Khusus diaktifkan.")
+            asyncio.create_task(loop_ternakkhusus())
+        else:
+            await event.reply("❗ Auto Ternak Khusus sudah aktif.")
+        return
+
+    if lmsg in ("tk off", "/tk off"):
+        if state["ternakkhusus"]["aktif"]:
+            state["ternakkhusus"]["aktif"] = False
+            await event.reply("⏹ Auto Ternak Khusus dimatikan.")
+        else:
+            await event.reply("❗ Auto Ternak Khusus belum aktif.")
+        return
+
+
+    # === SKY GARDEN ===
+    if lmsg in ("sg on", "/sg on"):
+        state["skygarden"]["aktif"] = True
+        await event.reply("🌿 Auto Sky Garden diaktifkan.")
+        asyncio.create_task(loop_skygarden())
+        return
+
+    if lmsg in ("sg off", "/sg off"):
+        state["skygarden"]["aktif"] = False
+        await event.reply("⏹ Auto Sky Garden dimatikan.")
+        return
+
 
     # === MASAK ===
     if lmsg == "masak":
@@ -289,6 +357,8 @@ async def main():
                  "- macul <tanaman> <jumlah>\n"
                  "- macul_guild <tanaman> <jumlah>\n"
                  "- macul_global <tanaman> <jumlah>\n"
+                 "- sg on / sg off (sky garden)\n"
+                 "- tk on / tk off (ternak khusus)\n"
                  "- stop atau stop_[mode]")
     await safe_send(msg_intro, "me")
     await client.run_until_disconnected()
