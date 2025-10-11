@@ -44,6 +44,17 @@ async def safe_send(msg, to=None):
         to = PRIVATE_LOG_CHAT
     await message_queue.put((msg, to or BOT_USERNAME))
 
+# === SAFE SEND RESTORE (langsung kirim tanpa antre) ===
+async def safe_send_restore(msg, to=None):
+    if to == "me":
+        to = PRIVATE_LOG_CHAT
+    dest = to or BOT_USERNAME
+    try:
+        await client.send_message(dest, msg)
+        print(f"[RESTORE] → {dest}: {msg}")
+    except Exception as e:
+        print(f"[!] Gagal kirim cepat {msg} ke {dest}: {e}")
+
 
 async def message_worker():
     while True:
@@ -63,7 +74,6 @@ state = {
     "masak": {"aktif": False, "kode": None, "loops": 0, "count": 0, "pause": False, "menunggu_input": False},
     "mancing": {"aktif": False, "lokasi": None, "pause": False, "last_click": 0},
     "mancing_x": {"aktif": False, "lokasi": None, "pause": False, "last_click": 0},
-    "grinding": {"aktif": False, "loops": 0, "count": 0, "pause": False},
     "macul": {"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180, "target": BOT_USERNAME, "pause": False},
     "macul_guild": {"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180, "pause": False},
     "macul_global": {"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180, "pause": False},
@@ -73,11 +83,6 @@ state = {
     "energi_habis": False
 }
 
-grinding_sequence = [
-    "/tanamGuild_KacangTanah_6000",
-    "/KebunGuild_Siram",
-    "/kebunGuild_PanenSekarang"
-]
 
 tanaman_data = {}
 
@@ -115,7 +120,7 @@ async def loop_ternakkhusus():
         next_hour = (now + datetime.timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
         wait_time = (next_hour - now).total_seconds()
         print(f"Menunggu {int(wait_time // 60)} menit hingga jam {next_hour.hour}:00")
-        await asyncio.sleep(wait_time)
+        await asyncio.sleep(wait_time + 15)  # tunggu hingga tepat jam berikutnya + 15 detik
 
         if not data["aktif"]:
             break
@@ -170,8 +175,11 @@ async def loop_masak():
 # === LOOP MANCING ===
 async def loop_mancing():
     data = state["mancing"]
-    lokasi = data["lokasi"]
-    print(f">> Loop Mancing dimulai di {lokasi} (Bot: {BOT_USERNAME})")
+    lokasi = data.get("lokasi")
+    alat = data.get("alat", "pancing").lower()
+
+
+    print(f">> Loop Mancing dimulai di {lokasi} pakai {alat.capitalize()} (Bot: {BOT_USERNAME})")
 
     # Kirim lokasi pertama kali
     await safe_send(lokasi, BOT_USERNAME)
@@ -200,8 +208,10 @@ async def loop_mancing():
 # === LOOP MANCING X===
 async def loop_mancing_x():
     data = state["mancing_x"]
-    lokasi = data["lokasi"]
-    print(f">> Loop Mancing dimulai di {lokasi} (Bot: {BOT_X})")
+    lokasi = data.get("lokasi")
+    alat = data.get("alat", "pancing").lower()
+
+    print(f">> Loop Mancing dimulai di {lokasi} pakai {alat.capitalize()} (Bot: {BOT_X})")
 
     # Kirim lokasi pertama kali
     await safe_send(lokasi, BOT_X)
@@ -226,24 +236,6 @@ async def loop_mancing_x():
 
     print(">> Loop Mancing berhenti")
     await safe_send("🎣 Auto Mancing berhenti.", PRIVATE_LOG_CHAT)
-
-# === LOOP GRINDING ===    
-async def loop_grinding():
-    data = state["grinding"]
-    print(f">> Loop Grinding dimulai ({data['loops']}x)")
-    data["count"] = 0
-    while data["aktif"] and data["count"] < data["loops"]:
-        while data.get("pause", False):
-            await asyncio.sleep(5)
-        for cmd in grinding_sequence:
-            if not data["aktif"]:
-                break
-            await safe_send(cmd)
-            await asyncio.sleep(2)
-        data["count"] += 1
-        print(f">> Grinding ke-{data['count']} selesai")
-    data["aktif"] = False
-    await safe_send(f"✅ Grinding selesai ({data['loops']}x siklus)", PRIVATE_LOG_CHAT)
 
 # === LOOP MACUL (PRIBADI / GUILD / GLOBAL) ===
 async def loop_macul(name="macul"):
@@ -285,6 +277,56 @@ async def cmd_owner(event):
     msg = (event.raw_text or "").strip()
     lmsg = msg.lower()
     print(f">> INPUT OWNER: {msg}")
+
+        # === SEMUA ON ===
+    if lmsg in ("semua on", "/semua on"):
+        # === SKY GARDEN ===
+        if not state["skygarden"]["aktif"]:
+            state["skygarden"]["aktif"] = True
+            asyncio.create_task(loop_skygarden())
+            await event.reply("🌿 Auto Sky Garden diaktifkan.")
+
+        # === TERNAK ===
+        if not state["ternak"]["aktif"]:
+            state["ternak"]["aktif"] = True
+            asyncio.create_task(loop_ternak())
+            await event.reply("🐓 Auto Makan Ternak diaktifkan.")
+
+        # === TERNAK KHUSUS ===
+        if not state["ternakkhusus"]["aktif"]:
+            state["ternakkhusus"]["aktif"] = True
+            asyncio.create_task(loop_ternakkhusus())
+            await event.reply("🐮 Auto Ternak Khusus diaktifkan.")
+
+        return
+
+
+    # === SEMUA OFF ===
+    if lmsg in ("semua off", "/semua off"):
+        stop_msgs = []
+
+        # === SKY GARDEN ===
+        if state["skygarden"]["aktif"]:
+            state["skygarden"]["aktif"] = False
+            stop_msgs.append("🌿 Auto Sky Garden dimatikan.")
+
+        # === TERNAK ===
+        if state["ternak"]["aktif"]:
+            state["ternak"]["aktif"] = False
+            stop_msgs.append("🐓 Auto Makan Ternak dimatikan.")
+
+        # === TERNAK KHUSUS ===
+        if state["ternakkhusus"]["aktif"]:
+            state["ternakkhusus"]["aktif"] = False
+            stop_msgs.append("🐮 Auto Ternak Khusus dimatikan.")
+
+        if stop_msgs:
+            await event.reply("\n".join(stop_msgs))
+        else:
+            await event.reply("❗ Tidak ada loop yang aktif untuk dimatikan.")
+
+        return
+
 
     # === TERNAK KHUSUS ===
     if lmsg in ("tk on", "/tk on","semua on", "/semua on"):
@@ -379,55 +421,77 @@ async def cmd_owner(event):
         state["mancing"].update({
             "aktif": False,
             "lokasi": None,
-            "menunggu_input": True
+            "alat": None,
+            "menunggu_lokasi": True,
+            "menunggu_alat": False
         })
 
         await event.reply("🎣 Mancing dimana?")
         return
     
-    if state["mancing"].get("menunggu_input", False) and not state["mancing"]["aktif"]:
-        if msg:
-            state["mancing"].update({
-                "aktif": True, 
-                "lokasi": msg,
-                "menunggu_input": False
-            })
-        await event.reply(f"Mulai auto-mancing di {msg} 🎣 Maifam Alpha")
+    # Tahap 1 → Pilih lokasi
+    if state["mancing"].get("menunggu_lokasi", False) and not state["mancing"]["aktif"]:
+        lokasi = msg.strip()
+        state["mancing"]["lokasi"] = lokasi
+        state["mancing"]["menunggu_lokasi"] = False
+        state["mancing"]["menunggu_alat"] = True
+        await event.reply(f"📍 Lokasi: {lokasi}\nPakai alat apa? (Ketik **Pancing** atau **Jala**)")
+        return
+
+    # Tahap 2 → Pilih alat
+    if state["mancing"].get("menunggu_alat", False) and not state["mancing"]["aktif"]:
+        alat = msg.strip().lower()
+        if alat not in ("pancing", "jala"):
+            await event.reply("⚠️ Pilihan tidak valid! Ketik **Pancing** atau **Jala**.")
+            return
+        
+        state["mancing"]["alat"] = alat
+        state["mancing"]["aktif"] = True
+        state["mancing"]["menunggu_alat"] = False
+
+        lokasi = state["mancing"]["lokasi"]
+        await event.reply(f"🎣 Mulai auto-mancing di {lokasi} pakai {alat.capitalize()}...")
         asyncio.create_task(loop_mancing())
         return
+
 
     # === MANCING X ===
     if lmsg == "mancing x":
         state["mancing_x"].update({
             "aktif": False,
             "lokasi": None,
-            "menunggu_input": True
+            "alat": None,
+            "menunggu_lokasi": True,
+            "menunggu_alat": False
         })
 
-        await event.reply("🎣 Mancing X dimana?")
+        await event.reply("🎣 Mancing dimana?")
         return
     
-    if state["mancing_x"].get("menunggu_input", False) and not state["mancing_x"]["aktif"]:
-        if msg:
-            state["mancing_x"].update({
-                "aktif": True, 
-                "lokasi": msg,
-                "menunggu_input": False
-            })
-        await event.reply(f"Mulai auto-mancing X di {msg} 🎣 Maifam X")
+    # Tahap 1 → Pilih lokasi
+    if state["mancing_x"].get("menunggu_lokasi", False) and not state["mancing_x"]["aktif"]:
+        lokasi = msg.strip()
+        state["mancing_x"]["lokasi"] = lokasi
+        state["mancing_x"]["menunggu_lokasi"] = False
+        state["mancing_x"]["menunggu_alat"] = True
+        await event.reply(f"📍 Lokasi: {lokasi}\nPakai alat apa? (Ketik **Pancing** atau **Jala**)")
+        return
+
+    # Tahap 2 → Pilih alat
+    if state["mancing_x"].get("menunggu_alat", False) and not state["mancing_x"]["aktif"]:
+        alat = msg.strip().lower()
+        if alat not in ("pancing", "jala"):
+            await event.reply("⚠️ Pilihan tidak valid! Ketik **Pancing** atau **Jala**.")
+            return
+        state["mancing_x"]["alat"] = alat
+        state["mancing_x"]["aktif"] = True
+        state["mancing_x"]["menunggu_alat"] = False
+
+        lokasi = state["mancing_x"]["lokasi"]
+        await event.reply(f"🎣 Mulai auto-mancing di {lokasi} pakai {alat.capitalize()}...")
         asyncio.create_task(loop_mancing_x())
         return
 
-    # === GRINDING ===
-    if lmsg == "grinding":
-        state["grinding"].update({"aktif": False, "loops": 0, "count": 0})
-        await event.reply("🔁 Mau berapa kali grinding?")
-        return
-    if lmsg.isdigit() and state["grinding"]["loops"]==0:
-        state["grinding"].update({"aktif": True, "loops": int(lmsg), "count":0})
-        await event.reply(f"Mulai grinding sebanyak {lmsg}x siklus 🔄")
-        asyncio.create_task(loop_grinding())
-        return
 
     # === MACUL (PRIBADI / GUILD / GLOBAL) ===
     if lmsg in ("macul","macul_guild","macul_global"):
@@ -474,6 +538,8 @@ async def cmd_owner(event):
         
     print(f"❗ Perintah tidak dikenali: {msg}")
 
+
+
 # ---------------- BOT HANDLER ----------------
 @client.on(events.NewMessage(from_users=BOT_USERNAME))
 async def bot_reply(event):
@@ -488,6 +554,7 @@ async def bot_reply(event):
             if isinstance(v, dict) and "pause" in v:
                 v["pause"] = True
         await safe_send("⚡ Energi habis, semua loop dipause sementara.")
+        await safe_send_restore("/restore")
         return
 
     # ENERGI PULIH → RESUME SEMUA LOOP
@@ -502,19 +569,25 @@ async def bot_reply(event):
 
     # MANCING
     s = state["mancing"]
-    if s["aktif"]:
-        if event.buttons:
-            for row in event.buttons:
-                for button in row:
-                    if "Tarik Alat Pancing" in (button.text or ""):
-                        await human_sleep()
-                        await button.click()
-                        state["mancing"]["last_click"] = asyncio.get_event_loop().time()
-                        print(">> 🎣 Klik tombol 'Tarik Alat Pancing'")
-                        return
+    if s["aktif"] and event.buttons:
+        alat = s.get("alat", "pancing")
+        for row in event.buttons:
+            for button in row:
+                if alat == "pancing" and "Tarik Alat Pancing" in (button.text or ""):
+                    await human_sleep()
+                    await button.click()
+                    print("🎣 Klik 'Tarik Alat Pancing'")
+                    s["last_click"] = asyncio.get_event_loop().time()
+                    return
+                elif alat == "jala" and "Tarik Jala" in (button.text or ""):
+                    await human_sleep()
+                    await button.click()
+                    print("🎣 Klik 'Tarik Jala'")
+                    s["last_click"] = asyncio.get_event_loop().time()
+                    return
 
-        if "kamu mendapatkan" in text:
-            await human_sleep(2,3)
+        if "kamu mendapatkan" or "Kamu berhasil menangkap" in text:
+            await human_sleep(1,2)
             await safe_send(s["lokasi"], BOT_USERNAME)
             print(f">> Kirim ulang lokasi: {s['lokasi']}, → Maifam Alpha")
 
@@ -526,21 +599,37 @@ async def bot_reply_x(event):
     text = (event.raw_text or "").lower()
     print(f"[BOT_X] {text[:120]}...")
 
+    # ENERGI PULIH → RESUME SEMUA LOOP
+    if "energi berhasil dipulihkan" in text:
+        print("✅ Energi pulih, semua loop dilanjutkan.")
+        state["energi_habis"] = False
+        for v in state.values():
+            if isinstance(v, dict) and "pause" in v:
+                v["pause"] = False
+        await safe_send("⚡ Semua loop dilanjutkan kembali.")
+        return
+
     # MANCING X
     s = state["mancing_x"]
-    if s["aktif"]:
-        if event.buttons:
-            for row in event.buttons:
-                for button in row:
-                    if "Tarik Alat Pancing" in (button.text or ""):
-                        await human_sleep()
-                        await button.click()
-                        state["mancing_x"]["last_click"] = asyncio.get_event_loop().time()
-                        print(">> 🎣 Klik tombol 'Tarik Alat Pancing'")
-                        return
-
-        if "kamu mendapatkan" in text:
-            await human_sleep(2,3)
+    if s["aktif"] and event.buttons:
+        alat = s.get("alat", "pancing")
+        for row in event.buttons:
+            for button in row:
+                if alat == "pancing" and "Tarik Alat Pancing" in (button.text or ""):
+                    await human_sleep()
+                    await button.click()
+                    print("🎣 Klik 'Tarik Alat Pancing'")
+                    s["last_click"] = asyncio.get_event_loop().time()
+                    return
+                elif alat == "jala" and "Tarik Jala" in (button.text or ""):
+                    await human_sleep()
+                    await button.click()
+                    print("🎣 Klik 'Tarik Jala'")
+                    s["last_click"] = asyncio.get_event_loop().time()
+                    return
+        
+        if "kamu mendapatkan" or "Kamu berhasil menangkap" in text:
+            await human_sleep(1,2)
             await safe_send(s["lokasi"], BOT_X)
             print(f">> Kirim ulang lokasi: {s['lokasi']}, → Maifam X ")
 
@@ -554,7 +643,6 @@ async def main():
                  "- masak → lalu kirim kode masak (/masak_xxx)\n"
                  "- mancing → lalu kirim lokasi\n"
                  "- mancing x → lalu kirim lokasi (Bot X)\n"
-                 "- grinding → lalu kirim jumlah loop\n"
                  "- macul <tanaman> <jumlah>\n"
                  "- macul_guild <tanaman> <jumlah>\n"
                  "- macul_global <tanaman> <jumlah>\n"
