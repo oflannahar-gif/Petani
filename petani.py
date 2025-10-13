@@ -44,8 +44,8 @@ async def safe_send(msg, to=None):
         to = PRIVATE_LOG_CHAT
     await message_queue.put((msg, to or BOT_USERNAME))
 
-# === SAFE SEND RESTORE (langsung kirim tanpa antre) ===
-async def safe_send_restore(msg, to=None):
+# === SAFE SEND CEPAT (langsung kirim tanpa antre) ===
+async def safe_send_cepat(msg, to=None):
     if to == "me":
         to = PRIVATE_LOG_CHAT
     dest = to or BOT_USERNAME
@@ -72,6 +72,7 @@ async def human_sleep(min_s=1.0, max_s=1.5):
 # ---------------- STATE ----------------
 state = {
     "masak": {"aktif": False, "kode": None, "loops": 0, "count": 0, "pause": False, "menunggu_input": False},
+    "masak_x": {"aktif": False, "kode": None, "loops": 0, "count": 0, "pause": False, "menunggu_input": False},
     "mancing": {"aktif": False, "lokasi": None, "pause": False, "last_click": 0},
     "mancing_x": {"aktif": False, "lokasi": None, "pause": False, "last_click": 0},
     "macul": {"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180, "target": BOT_USERNAME, "pause": False},
@@ -160,11 +161,26 @@ async def loop_ternak():
 # === LOOP MASAK ===
 async def loop_masak():
     data = state["masak"]
-    print(">> Loop Masak dimulai")
+    print(">> Loop Masak Alpha dimulai")
     while data["aktif"] and data["kode"] and (data["count"] < data["loops"] or data["loops"] == 0):
         while data.get("pause", False):
             await asyncio.sleep(5)
-        await safe_send(data["kode"])
+        await safe_send(data["kode"], BOT_USERNAME)
+        data["count"] += 1
+        print(f"🍳 Masak ke-{data['count']}")
+        await asyncio.sleep(2)
+    data["aktif"] = False
+    await safe_send(f"✅ Masak selesai ({data['count']}x)", PRIVATE_LOG_CHAT)
+    print(">> Loop Masak berhenti")
+
+# === LOOP MASAK X ===
+async def loop_masak_x():
+    data = state["masak_x"]
+    print(">> Loop Masak X dimulai")
+    while data["aktif"] and data["kode"] and (data["count"] < data["loops"] or data["loops"] == 0):
+        while data.get("pause", False):
+            await asyncio.sleep(5)
+        await safe_send(data["kode"], BOT_X)
         data["count"] += 1
         print(f"🍳 Masak ke-{data['count']}")
         await asyncio.sleep(2)
@@ -248,9 +264,9 @@ async def loop_macul(name="macul"):
         while data.get("pause", False):
             await asyncio.sleep(5)
         if name == "macul_global":
-            await safe_send(f"/tanam_{data['tanaman']}_{data['jumlah']}", GLOBAL_GROUP)
+            await safe_send_cepat(f"/tanam_{data['tanaman']}_{data['jumlah']}", GLOBAL_GROUP)
             await asyncio.sleep(durasi)
-            await safe_send("/panen", GLOBAL_GROUP)
+            await safe_send_cepat("/panen", GLOBAL_GROUP)
             await asyncio.sleep(305)
         elif name in ("macul", "macul_guild"):
             cmd_tanam = f"/tanam_{data['tanaman']}_{data['jumlah']}" if name=="macul" else f"/tanamGuild_{data['tanaman']}_{data['jumlah']}"
@@ -415,6 +431,38 @@ async def cmd_owner(event):
         asyncio.create_task(loop_masak())
         return
 
+    # === MASAK X ===
+    if lmsg == "masak x":
+        state["masak_x"].update({
+            "aktif": False,
+            "kode": None,
+            "loops": 0,
+            "count": 0,
+            "menunggu_input": "kode"
+        })
+        await event.reply("🍳 Mau masak apa?")
+        return
+
+    # Jika sedang menunggu kode masakan
+    if state["masak_x"].get("menunggu_input") == "kode":
+        state["masak_x"]["kode"] = msg
+        state["masak_x"]["menunggu_input"] = "jumlah"
+        await event.reply("🔁 Mau masak berapa kali?")
+        return
+
+    # Jika sedang menunggu jumlah loop
+    if state["masak_x"].get("menunggu_input") == "jumlah" and lmsg.isdigit():
+        loops = int(lmsg)
+        state["masak_x"].update({
+            "aktif": True,
+            "loops": loops,
+            "count": 0,
+            "menunggu_input": False
+        })
+        await event.reply(f"Mulai auto-masak {loops}x 🍳")
+        asyncio.create_task(loop_masak_x())
+        return
+
 
     # === MANCING ===
     if lmsg == "mancing":
@@ -554,7 +602,7 @@ async def bot_reply(event):
             if isinstance(v, dict) and "pause" in v:
                 v["pause"] = True
         await safe_send("⚡ Energi habis, semua loop dipause sementara.")
-        await safe_send_restore("/restore")
+        await safe_send_cepat("/restore")
         return
 
     # ENERGI PULIH → RESUME SEMUA LOOP
@@ -640,8 +688,9 @@ async def main():
     load_tanaman()
     asyncio.create_task(message_worker())
     msg_intro = ("Bot siap ✅\n\nCommand:\n"
-                 "- masak → lalu kirim kode masak (/masak_xxx)\n"
-                 "- mancing → lalu kirim lokasi\n"
+                 "- masak → lalu kirim kode masak (Bot Alpha)\n"
+                 "- masak x → lalu kirim kode masak (Bot X)\n"
+                 "- mancing → lalu kirim lokasi (Bot Alpha)\n"
                  "- mancing x → lalu kirim lokasi (Bot X)\n"
                  "- macul <tanaman> <jumlah>\n"
                  "- macul_guild <tanaman> <jumlah>\n"
