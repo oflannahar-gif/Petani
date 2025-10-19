@@ -1,4 +1,4 @@
-# Petani.py — Auto Game Kampung Maifam (ENERGI UPGRADE)
+# Petani.py
 
 import os
 import asyncio
@@ -17,6 +17,7 @@ API_HASH = os.getenv("API_HASH") or ""
 PHONE = os.getenv("PHONE") or ""
 BOT_USERNAME = (os.getenv("BOT_USERNAME") or "KampungMaifamBot").lstrip('@')
 BOT_X = (os.getenv("BOT_X") or "KampungMaifamXBot").lstrip('@')
+GROUP_DANAU = "@danaudalamhutan"
 OWNER_ID = int(os.getenv("OWNER_ID") or 0)
 GLOBAL_GROUP = "@KampungMaifamGlobal"
 
@@ -37,12 +38,26 @@ else:
 # ---------------- QUEUE ----------------
 message_queue = asyncio.Queue()
 
-PRIVATE_LOG_CHAT = -4879504986  # ID grup privat kamu
+PRIVATE_LOG_CHAT = -4650846540  # ID grup privat kamu
 
+# === SAFE SEND Bot Alpha ===
 async def safe_send(msg, to=None):
     if to == "me":
         to = PRIVATE_LOG_CHAT
     await message_queue.put((msg, to or BOT_USERNAME))
+
+# === SAFE SEND Bot X ===
+async def safe_send_x(msg, to=None):
+    if to == "me":
+        to = PRIVATE_LOG_CHAT
+    await message_queue.put((msg, to or BOT_X))
+
+# === SAFE SEND Grup Danau ===
+async def safe_send_d(msg, to=None):
+    if to == "me":
+        to = PRIVATE_LOG_CHAT
+    await message_queue.put((msg, to or GROUP_DANAU))
+
 
 # === SAFE SEND CEPAT (langsung kirim tanpa antre) ===
 async def safe_send_cepat(msg, to=None):
@@ -79,6 +94,8 @@ state = {
     "macul_guild": {"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180, "pause": False},
     "macul_global": {"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180, "pause": False},
     "skygarden": {"aktif": False, "interval": 420, "pause": False},
+    "fishing": {"aktif": False, "interval": 270, "pause": False},
+    "maling": {"aktif": False, "interval": 4, "pause": False},
     "ternak": {"aktif": False, "interval": 910, "pause": False},
     "ternakkhusus": {"aktif": False, "pause": False},
     "energi_habis": False
@@ -87,7 +104,7 @@ state = {
 
 tanaman_data = {}
 
-# ---------------- LOAD TANAMAN ----------------
+# ---------------- LOAD DATA TANAMAN ----------------
 def load_tanaman():
     tanaman_data.clear()
     if not os.path.exists("tanaman.txt"):
@@ -107,7 +124,49 @@ def load_tanaman():
                     print(f"⚠️ Baris tanaman tidak valid dilewati: {line}")
     print(f"🌿 {len(tanaman_data)} tanaman dimuat: {', '.join(tanaman_data.keys())}")
 
+# ---------------- LOAD DATA MALING ----------------
+def load_maling():
+    if not os.path.exists("maling.txt"):
+        print("⚠️ File maling.txt tidak ditemukan.")
+        return []
+    lokasi_maling = []
+    with open("maling.txt", "r", encoding="utf-8") as f:
+        for raw in f:
+            line = raw.strip()
+            if line and not line.startswith("#"):
+                lokasi_maling.append(line)
+    print(f"🦹‍♂️ {len(lokasi_maling)} lokasi maling dimuat.")
+    return lokasi_maling
+
+
+
+
 # =============== LOOPS ================
+
+# === LOOP MALING ===
+async def loop_maling():
+    data = state["maling"]
+    lokasi_list = load_maling()
+    if not lokasi_list:
+        print("⚠️ Tidak ada lokasi maling, loop maling dibatalkan.")
+        return
+    print(">> Loop Maling dimulai")
+    await safe_send("🦹‍♂️ Auto Maling dimulai", PRIVATE_LOG_CHAT)
+    while data["aktif"]:
+        while data.get("pause", False):
+            await asyncio.sleep(5)
+        if "index" not in data:
+            data["index"] = 0
+
+        lokasi = lokasi_list[data["index"]]
+        data["index"] = (data["index"] + 1) % len(lokasi_list)
+
+        await safe_send_x(f"{lokasi}")
+        print(f"[SEND] maling {lokasi}")
+        await asyncio.sleep(data["interval"])
+    print(">> Loop Maling berhenti")
+    await safe_send("🦹‍♂️ Auto Maling dimatikan", PRIVATE_LOG_CHAT)
+
 # === LOOP TERNAK KHUSUS ===
 async def loop_ternakkhusus():
     data = state["ternakkhusus"]
@@ -132,6 +191,19 @@ async def loop_ternakkhusus():
     print(">> Loop Ternak Khusus berhenti")
     await safe_send("🐮 Auto Ternak Khusus dimatikan", PRIVATE_LOG_CHAT)
 
+# === LOOP GRUP DANAU ===
+async def loop_grup_danau():
+    data = state["fishing"]
+    print(">> Loop Grup Danau dimulai")
+    await safe_send_d("🎣 Auto Mancing Grup Danau dimulai", PRIVATE_LOG_CHAT)
+    while data["aktif"]:
+        while data.get("pause", False):
+            await asyncio.sleep(5)
+        await safe_send_d("/fish")
+        await asyncio.sleep(data["interval"])
+    print(">> Loop Grup Danau berhenti")
+    await safe_send_d("🎣 Auto Mancing Grup Danau berhenti.", PRIVATE_LOG_CHAT)
+
 # === LOOP SKY GARDEN ===
 async def loop_skygarden():
     data = state["skygarden"]
@@ -143,6 +215,7 @@ async def loop_skygarden():
         await safe_send("/sg_panen")
         await asyncio.sleep(data["interval"])
     print(">> Loop Sky Garden berhenti")
+    await safe_send("🌿 Auto Sky Garden dimatikan", PRIVATE_LOG_CHAT)
 
 # === LOOP TERNAK ===
 async def loop_ternak():
@@ -180,12 +253,12 @@ async def loop_masak_x():
     while data["aktif"] and data["kode"] and (data["count"] < data["loops"] or data["loops"] == 0):
         while data.get("pause", False):
             await asyncio.sleep(5)
-        await safe_send(data["kode"], BOT_X)
+        await safe_send_x(data["kode"], BOT_X)
         data["count"] += 1
         print(f"🍳 Masak ke-{data['count']}")
         await asyncio.sleep(2)
     data["aktif"] = False
-    await safe_send(f"✅ Masak selesai ({data['count']}x)", PRIVATE_LOG_CHAT)
+    await safe_send_x(f"✅ Masak selesai ({data['count']}x)", PRIVATE_LOG_CHAT)
     print(">> Loop Masak berhenti")
 
 # === LOOP MANCING ===
@@ -230,7 +303,7 @@ async def loop_mancing_x():
     print(f">> Loop Mancing dimulai di {lokasi} pakai {alat.capitalize()} (Bot: {BOT_X})")
 
     # Kirim lokasi pertama kali
-    await safe_send(lokasi, BOT_X)
+    await safe_send_x(lokasi, BOT_X)
     await asyncio.sleep(3)
 
     # Catat waktu terakhir klik pancing
@@ -244,14 +317,14 @@ async def loop_mancing_x():
         now = asyncio.get_event_loop().time()
         # Kalau sudah 10 detik tidak ada klik (macet), kirim ulang lokasi
         if now - data.get("last_click", 0) > 10:
-            await safe_send(lokasi, BOT_X)
+            await safe_send_x(lokasi, BOT_X)
             print(f"⚠️ Tidak ada respons, kirim ulang lokasi: {lokasi} ke {BOT_X}")
             data["last_click"] = now
 
         await asyncio.sleep(5)  # cek setiap 5 detik
 
     print(">> Loop Mancing berhenti")
-    await safe_send("🎣 Auto Mancing berhenti.", PRIVATE_LOG_CHAT)
+    await safe_send_x("🎣 Auto Mancing berhenti.", PRIVATE_LOG_CHAT)
 
 # === LOOP MACUL (PRIBADI / GUILD / GLOBAL) ===
 async def loop_macul(name="macul"):
@@ -320,6 +393,10 @@ async def cmd_owner(event):
     # === SEMUA OFF ===
     if lmsg in ("semua off", "/semua off"):
         stop_msgs = []
+        # === FISHING GRUP DANAU ===
+        if state["fishing"]["aktif"]:
+            state["fishing"]["aktif"] = False
+            stop_msgs.append("🎣 Auto Mancing Grup Danau dimatikan.")
 
         # === SKY GARDEN ===
         if state["skygarden"]["aktif"]:
@@ -380,6 +457,41 @@ async def cmd_owner(event):
             await event.reply("❗ Auto Makan Ternak belum aktif.")
         return
 
+    # === Maling ===
+    if lmsg in ("maling on", "/maling on", "semua on","/semua on"):
+        if not state["maling"]["aktif"]:
+            state["maling"]["aktif"] = True
+            await event.reply("🦹‍♂️ Auto Maling diaktifkan.")
+            asyncio.create_task(loop_maling())
+        else:
+            await event.reply("❗ Auto Maling sudah aktif.")
+        return
+    
+    if lmsg in ("maling off", "/maling off", "semua off","/semua off"):
+        if state["maling"]["aktif"]:
+            state["maling"]["aktif"] = False
+            await event.reply("⏹ Auto Maling dimatikan.")
+        else:
+            await event.reply("❗ Auto Maling belum aktif.")
+        return
+
+    # === FISHING GRUP DANAU ===
+    if lmsg in ("fd on", "/fd on", "semua on","/semua on"):
+        if not state["fishing"]["aktif"]:
+            state["fishing"]["aktif"] = True
+            await event.reply("🎣 Auto Mancing Grup Danau diaktifkan.")
+            asyncio.create_task(loop_grup_danau())
+        else:
+            await event.reply("❗ Auto Mancing Grup Danau sudah aktif.")
+        return
+    
+    if lmsg in ("fd off", "/fd off", "semua off","/semua off"):
+        if state["fishing"]["aktif"]:
+            state["fishing"]["aktif"] = False
+            await event.reply("⏹ Auto Mancing Grup Danau dimatikan.")
+        else:
+            await event.reply("❗ Auto Mancing Grup Danau belum aktif.")
+        return
 
     # === SKY GARDEN ===
     if lmsg in ("sg on", "/sg on", "semua on","/semua on"):
@@ -654,7 +766,7 @@ async def bot_reply_x(event):
         for v in state.values():
             if isinstance(v, dict) and "pause" in v:
                 v["pause"] = False
-        await safe_send("⚡ Semua loop dilanjutkan kembali.")
+        await safe_send_x("⚡ Semua loop dilanjutkan kembali.")
         return
 
     # MANCING X
@@ -678,7 +790,7 @@ async def bot_reply_x(event):
         
         if "kamu mendapatkan" or "Kamu berhasil menangkap" in text:
             await human_sleep(1,2)
-            await safe_send(s["lokasi"], BOT_X)
+            await safe_send_x(s["lokasi"], BOT_X)
             print(f">> Kirim ulang lokasi: {s['lokasi']}, → Maifam X ")
 
 # ---------------- MAIN ----------------
@@ -698,6 +810,8 @@ async def main():
                  "- sg on / sg off (sky garden)\n"
                  "- tk on / tk off (ternak khusus)\n"
                  "- tr on / tr off (ternak biasa)\n"
+                 "- fd on / fd off (fishing danau)\n"
+                 "- maling on / maling off (auto maling)\n"
                  "- semua on / semua off (aktifkan/nonaktifkan fitur TK SG dan TR)\n"
                  "- stop atau stop_[mode]")
     await safe_send(msg_intro, "me")
