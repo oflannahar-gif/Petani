@@ -713,7 +713,7 @@ async def bot_reply(event):
         for v in state.values():
             if isinstance(v, dict) and "pause" in v:
                 v["pause"] = True
-        await safe_send("⚡ Energi habis, semua loop dipause sementara.")
+  
         await safe_send_cepat("/restore")
         return
 
@@ -758,7 +758,16 @@ async def bot_reply(event):
 async def bot_reply_x(event):
     text = (event.raw_text or "").lower()
     print(f"[BOT_X] {text[:120]}...")
-
+    # ENERGI HABIS → PAUSE SEMUA LOOP
+    if "kamu tidak memiliki cukup energi" in text and "/tidur" in text:
+        print("⚠️ Energi habis! Semua loop dipause sementara.")
+        state["energi_habis"] = True
+        for v in state.values():
+            if isinstance(v, dict) and "pause" in v:
+                v["pause"] = True
+  
+        await safe_send_cepat("/restore")
+        return
     # ENERGI PULIH → RESUME SEMUA LOOP
     if "energi berhasil dipulihkan" in text:
         print("✅ Energi pulih, semua loop dilanjutkan.")
