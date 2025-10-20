@@ -724,7 +724,7 @@ async def bot_reply(event):
         for v in state.values():
             if isinstance(v, dict) and "pause" in v:
                 v["pause"] = False
-        await safe_send("⚡ Semua loop dilanjutkan kembali.")
+        
         return
 
     # MANCING
