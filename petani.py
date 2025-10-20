@@ -765,7 +765,7 @@ async def bot_reply_x(event):
         for v in state.values():
             if isinstance(v, dict) and "pause" in v:
                 v["pause"] = True
-  
+        await human_sleep(1,2)
         await safe_send_cepat("/restore")
         return
     # ENERGI PULIH → RESUME SEMUA LOOP
