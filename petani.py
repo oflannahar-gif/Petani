@@ -164,6 +164,10 @@ async def loop_maling():
         await safe_send_x(f"{lokasi}")
         print(f"[SEND] maling {lokasi}")
         await asyncio.sleep(data["interval"])
+        for _ in range(10):  
+            if not data["aktif"]:
+                break
+            await asyncio.sleep(0.5)
     print(">> Loop Maling berhenti")
     await safe_send("🦹‍♂️ Auto Maling dimatikan", PRIVATE_LOG_CHAT)
 
@@ -187,7 +191,10 @@ async def loop_ternakkhusus():
 
         await safe_send("/beriMakanx")
         print(f"[SEND] /beriMakanx → berikutnya akan dikirim pukul {next_hour.hour + 1}:00")
-
+        for _ in range(10):  
+            if not data["aktif"]:
+                break
+            await asyncio.sleep(0.5)
     print(">> Loop Ternak Khusus berhenti")
     await safe_send("🐮 Auto Ternak Khusus dimatikan", PRIVATE_LOG_CHAT)
 
@@ -201,6 +208,10 @@ async def loop_grup_danau():
             await asyncio.sleep(5)
         await safe_send_d("/fish")
         await asyncio.sleep(data["interval"])
+        for _ in range(10):  
+            if not data["aktif"]:
+                break
+            await asyncio.sleep(0.5)
     print(">> Loop Grup Danau berhenti")
     await safe_send_d("🎣 Auto Mancing Grup Danau berhenti.", PRIVATE_LOG_CHAT)
 
@@ -214,6 +225,10 @@ async def loop_skygarden():
             await asyncio.sleep(5)
         await safe_send("/sg_panen")
         await asyncio.sleep(data["interval"])
+        for _ in range(10):  
+            if not data["aktif"]:
+                break
+            await asyncio.sleep(0.5)
     print(">> Loop Sky Garden berhenti")
     await safe_send("🌿 Auto Sky Garden dimatikan", PRIVATE_LOG_CHAT)
 
@@ -229,6 +244,10 @@ async def loop_ternak():
         await asyncio.sleep(2)
         await safe_send("/beriMakan")
         await asyncio.sleep(data["interval"])
+        for _ in range(10):  
+            if not data["aktif"]:
+                break
+            await asyncio.sleep(0.5)
     print(">> Loop Ternak berhenti")
 
 # === LOOP MASAK ===
@@ -241,7 +260,10 @@ async def loop_masak():
         await safe_send(data["kode"], BOT_USERNAME)
         data["count"] += 1
         print(f"🍳 Masak ke-{data['count']}")
-        await asyncio.sleep(2)
+        for _ in range(10):  
+            if not data["aktif"]:
+                break
+            await asyncio.sleep(0.5)
     data["aktif"] = False
     await safe_send(f"✅ Masak selesai ({data['count']}x)", PRIVATE_LOG_CHAT)
     print(">> Loop Masak berhenti")
@@ -256,7 +278,10 @@ async def loop_masak_x():
         await safe_send_x(data["kode"], BOT_X)
         data["count"] += 1
         print(f"🍳 Masak ke-{data['count']}")
-        await asyncio.sleep(2)
+        for _ in range(10):  
+            if not data["aktif"]:
+                break
+            await asyncio.sleep(0.5)
     data["aktif"] = False
     await safe_send_x(f"✅ Masak selesai ({data['count']}x)", PRIVATE_LOG_CHAT)
     print(">> Loop Masak berhenti")
@@ -274,22 +299,25 @@ async def loop_mancing():
     await safe_send(lokasi, BOT_USERNAME)
     await asyncio.sleep(3)
 
-    # Catat waktu terakhir klik pancing
-    data["last_click"] = asyncio.get_event_loop().time()
 
     while data["aktif"]:
         # Kalau sedang di-pause, tunggu dulu
         while data.get("pause", False):
             await asyncio.sleep(5)
-
+        
         now = asyncio.get_event_loop().time()
-        # Kalau sudah 10 detik tidak ada klik (macet), kirim ulang lokasi
-        if now - data.get("last_click", 0) > 10:
+
+        # ⚠️ kalau tidak ada aktivitas selama 15 detik → kirim ulang lokasi
+        if now - data.get("last_click", 0) > 15:
+            print(f"⚠️ Tidak ada respons, kirim ulang lokasi: {lokasi}")
             await safe_send(lokasi, BOT_USERNAME)
-            print(f"⚠️ Tidak ada respons, kirim ulang lokasi: {lokasi} ke {BOT_USERNAME}")
             data["last_click"] = now
 
-        await asyncio.sleep(5)  # cek setiap 5 detik
+        for _ in range(10):  
+            if not data["aktif"]:
+                break
+            await asyncio.sleep(0.5)
+
 
     print(">> Loop Mancing berhenti")
     await safe_send("🎣 Auto Mancing berhenti.", PRIVATE_LOG_CHAT)
@@ -300,31 +328,36 @@ async def loop_mancing_x():
     lokasi = data.get("lokasi")
     alat = data.get("alat", "pancing").lower()
 
+
     print(f">> Loop Mancing dimulai di {lokasi} pakai {alat.capitalize()} (Bot: {BOT_X})")
 
     # Kirim lokasi pertama kali
     await safe_send_x(lokasi, BOT_X)
     await asyncio.sleep(3)
 
-    # Catat waktu terakhir klik pancing
-    data["last_click"] = asyncio.get_event_loop().time()
 
     while data["aktif"]:
         # Kalau sedang di-pause, tunggu dulu
         while data.get("pause", False):
             await asyncio.sleep(5)
-
+        
         now = asyncio.get_event_loop().time()
-        # Kalau sudah 10 detik tidak ada klik (macet), kirim ulang lokasi
-        if now - data.get("last_click", 0) > 10:
+
+        # ⚠️ kalau tidak ada aktivitas selama 15 detik → kirim ulang lokasi
+        if now - data.get("last_click", 0) > 15:
+            print(f"⚠️ Tidak ada respons, kirim ulang lokasi: {lokasi}")
             await safe_send_x(lokasi, BOT_X)
-            print(f"⚠️ Tidak ada respons, kirim ulang lokasi: {lokasi} ke {BOT_X}")
             data["last_click"] = now
 
-        await asyncio.sleep(5)  # cek setiap 5 detik
+        for _ in range(10):  
+            if not data["aktif"]:
+                break
+            await asyncio.sleep(0.5)
+
 
     print(">> Loop Mancing berhenti")
     await safe_send_x("🎣 Auto Mancing berhenti.", PRIVATE_LOG_CHAT)
+
 
 # === LOOP MACUL (PRIBADI / GUILD / GLOBAL) ===
 async def loop_macul(name="macul"):
@@ -350,7 +383,10 @@ async def loop_macul(name="macul"):
             await safe_send(cmd_siram, target)
             await asyncio.sleep(durasi)
             await safe_send(cmd_panen, target)
-        await asyncio.sleep(3)
+        for _ in range(10):  
+            if not data["aktif"]:
+                break
+            await asyncio.sleep(0.5)
     print(f">> Loop {name} berhenti")
 
 # ---------------- STOP ALL ----------------
@@ -373,19 +409,25 @@ async def cmd_owner(event):
         if not state["skygarden"]["aktif"]:
             state["skygarden"]["aktif"] = True
             asyncio.create_task(loop_skygarden())
-            await event.reply("🌿 Auto Sky Garden diaktifkan.")
+            
 
         # === TERNAK ===
         if not state["ternak"]["aktif"]:
             state["ternak"]["aktif"] = True
             asyncio.create_task(loop_ternak())
-            await event.reply("🐓 Auto Makan Ternak diaktifkan.")
+            
 
         # === TERNAK KHUSUS ===
         if not state["ternakkhusus"]["aktif"]:
             state["ternakkhusus"]["aktif"] = True
             asyncio.create_task(loop_ternakkhusus())
-            await event.reply("🐮 Auto Ternak Khusus diaktifkan.")
+            
+
+        # === FISHING GRUP DANAU ===
+        if not state["fishing"]["aktif"]:
+            state["fishing"]["aktif"] = True
+            asyncio.create_task(loop_grup_danau())
+            
 
         return
 
@@ -701,73 +743,96 @@ async def cmd_owner(event):
 
 
 # ---------------- BOT HANDLER ----------------
-@client.on(events.NewMessage(from_users=BOT_USERNAME))
-async def bot_reply(event):
-    text = (event.raw_text or "").lower()
-    print(f"[BOT] {text[:120]}...")
+# === LOOP MANCING ===
+async def loop_mancing():
+    data = state["mancing"]
+    lokasi = data.get("lokasi")
+    spot = lokasi
+    alat = data.get("alat", "Tarik Pancing")  # default alat jika belum diatur
+    print(f">> Loop Mancing dimulai di {lokasi} (Bot: {BOT_USERNAME})")
 
-    # ENERGI HABIS → PAUSE SEMUA LOOP
-    if "kamu tidak memiliki cukup energi" in text and "/tidur" in text:
-        print("⚠️ Energi habis! Semua loop dipause sementara.")
-        state["energi_habis"] = True
-        for v in state.values():
-            if isinstance(v, dict) and "pause" in v:
-                v["pause"] = True
-  
-        await safe_send_cepat("/restore")
+    # kirim lokasi pertama kali
+    await safe_send(lokasi, BOT_USERNAME)
+    await asyncio.sleep(3)
+
+    while data["aktif"]:
+        # pause handler
+        while data.get("pause", False):
+            await asyncio.sleep(5)
+
+        await asyncio.sleep(5)
+    print(">> Loop Mancing berhenti")
+    await safe_send("🎣 Auto Mancing berhenti.", PRIVATE_LOG_CHAT)
+
+
+# === EVENT HANDLER MANCING ===
+@client.on(events.NewMessage(incoming=True, chats=BOT_USERNAME))
+async def handle_mancing_final(event):
+    msg = (event.raw_text or "").lower()
+    data = state.get("mancing", {})
+    if not data.get("aktif") or not data.get("lokasi"):
         return
 
-    # ENERGI PULIH → RESUME SEMUA LOOP
-    if "energi berhasil dipulihkan" in text:
-        print("✅ Energi pulih, semua loop dilanjutkan.")
-        state["energi_habis"] = False
-        for v in state.values():
-            if isinstance(v, dict) and "pause" in v:
-                v["pause"] = False
-        
-        return
+    lokasi = data["lokasi"]
+    alat = data.get("alat", "pancing").lower()
 
-    # MANCING
-    s = state["mancing"]
-    if s["aktif"] and event.buttons:
-        alat = s.get("alat", "pancing")
+    # ✅ Klik tombol "Tarik" langsung kalau ada
+    if event.buttons:
         for row in event.buttons:
             for button in row:
-                if alat == "pancing" and "Tarik Alat Pancing" in (button.text or ""):
+                teks = (button.text or "").lower()
+                if alat == "pancing" and ("tarik alat pancing" in teks or "pull the rod" in teks):
                     await human_sleep()
                     await button.click()
+                    data["last_click"] = asyncio.get_event_loop().time()
                     print("🎣 Klik 'Tarik Alat Pancing'")
-                    s["last_click"] = asyncio.get_event_loop().time()
                     return
-                elif alat == "jala" and "Tarik Jala" in (button.text or ""):
+                elif alat == "jala" and ("tarik jala" in teks or "pull the net" in teks):
                     await human_sleep()
                     await button.click()
+                    data["last_click"] = asyncio.get_event_loop().time()
                     print("🎣 Klik 'Tarik Jala'")
-                    s["last_click"] = asyncio.get_event_loop().time()
                     return
+                                
 
-        if "kamu mendapatkan" or "Kamu berhasil menangkap" in text:
-            await human_sleep(1,2)
-            await safe_send(s["lokasi"], BOT_USERNAME)
-            print(f">> Kirim ulang lokasi: {s['lokasi']}, → Maifam Alpha")
 
+    if "/tidur" in msg or "/sleep" in msg:
+        print("⚠️ Energi habis, mencoba restore...")
+        data["restore_mode"] = True  # tandai sedang restore
+        for i in range(10):  # maksimal 10 kali percobaan
+            if not data.get("restore_mode"):
+                break  # keluar kalau sudah sukses
+            await safe_send("/restore", BOT_USERNAME)
+            print(f"[RESTORE TRY] {i+1}/10")
+            await asyncio.sleep(5)
+        return
+
+    # Jika berhasil dipulihkan → hentikan mode restore
+    if "berhasil dipulihkan" in msg or "energi berhasil dipulihkan" in msg:
+        if data.get("restore_mode"):
+            data["restore_mode"] = False
+            print("✅ Energi berhasil dipulihkan! Lanjut mancing...")
+        await asyncio.sleep(3)
+        await safe_send(lokasi, BOT_USERNAME)
+        return
+
+
+    # 🪝 Indikator memancing (hasil tangkap, skill, dsb)
+    if any(x in msg for x in [
+        "memancing", "fishing skill", "kamu mendapatkan", "berhasil menangkap",
+        "energi berhasil dipulihkan", "restored", "kamu tidak sedang memancing"
+    ]):
+        await human_sleep(1, 2)
+        await safe_send(lokasi, BOT_USERNAME)
+        print(f"↻ Lanjut mancing di {lokasi}")
 
 
 # === BOT 2 HANDLER (untuk Mancing X) ===
-@client.on(events.NewMessage(from_users="KampungMaifamXBot"))
+@client.on(events.NewMessage(from_users=BOT_X))
 async def bot_reply_x(event):
     text = (event.raw_text or "").lower()
     print(f"[BOT_X] {text[:120]}...")
-    # ENERGI HABIS → PAUSE SEMUA LOOP
-    if "kamu tidak memiliki cukup energi" in text and "/tidur" in text:
-        print("⚠️ Energi habis! Semua loop dipause sementara.")
-        state["energi_habis"] = True
-        for v in state.values():
-            if isinstance(v, dict) and "pause" in v:
-                v["pause"] = True
-        await human_sleep(1,2)
-        await safe_send_cepat("/restore")
-        return
+
     # ENERGI PULIH → RESUME SEMUA LOOP
     if "energi berhasil dipulihkan" in text:
         print("✅ Energi pulih, semua loop dilanjutkan.")
@@ -775,7 +840,7 @@ async def bot_reply_x(event):
         for v in state.values():
             if isinstance(v, dict) and "pause" in v:
                 v["pause"] = False
-      
+        await safe_send_x("⚡ Semua loop dilanjutkan kembali.")
         return
 
     # MANCING X
