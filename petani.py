@@ -760,7 +760,10 @@ async def loop_mancing():
         while data.get("pause", False):
             await asyncio.sleep(5)
 
-        await asyncio.sleep(5)
+        for _ in range(10):  
+            if not data["aktif"]:
+                break
+            await asyncio.sleep(0.5)
     print(">> Loop Mancing berhenti")
     await safe_send("🎣 Auto Mancing berhenti.", PRIVATE_LOG_CHAT)
 
@@ -806,6 +809,7 @@ async def handle_mancing_final(event):
         for i in range(5):  # maksimal 10 kali percobaan
             if not data.get("restore_mode"):
                 break  # keluar kalau sudah sukses
+            await asyncio.sleep(3)
             await safe_send_cepat("/restore", BOT_USERNAME)
             print(f"[RESTORE TRY] {i+1}/10")
             await asyncio.sleep(5)
