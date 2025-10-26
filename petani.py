@@ -799,10 +799,10 @@ async def handle_mancing_final(event):
     if "/tidur" in msg or "/sleep" in msg:
         print("⚠️ Energi habis, mencoba restore...")
         data["restore_mode"] = True  # tandai sedang restore
-        for i in range(10):  # maksimal 10 kali percobaan
+        for i in range(5):  # maksimal 10 kali percobaan
             if not data.get("restore_mode"):
                 break  # keluar kalau sudah sukses
-            await safe_send("/restore", BOT_USERNAME)
+            await safe_send_cepat("/restore", BOT_USERNAME)
             print(f"[RESTORE TRY] {i+1}/10")
             await asyncio.sleep(5)
         return
