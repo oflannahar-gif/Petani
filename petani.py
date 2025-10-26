@@ -799,6 +799,10 @@ async def handle_mancing_final(event):
     if "/tidur" in msg or "/sleep" in msg:
         print("⚠️ Energi habis, mencoba restore...")
         data["restore_mode"] = True  # tandai sedang restore
+        state["energi_habis"] = True
+        for v in state.values():
+            if isinstance(v, dict) and "pause" in v:
+                v["pause"] = True
         for i in range(5):  # maksimal 10 kali percobaan
             if not data.get("restore_mode"):
                 break  # keluar kalau sudah sukses
@@ -808,7 +812,12 @@ async def handle_mancing_final(event):
         return
 
     # Jika berhasil dipulihkan → hentikan mode restore
-    if "berhasil dipulihkan" in msg or "energi berhasil dipulihkan" in msg:
+    if "berhasil dipulihkan" in msg or "Energi berhasil dipulihkan" in msg:
+        state["energi_habis"] = False
+        for v in state.values():
+            if isinstance(v, dict) and "pause" in v:
+                v["pause"] = False
+        
         if data.get("restore_mode"):
             data["restore_mode"] = False
             print("✅ Energi berhasil dipulihkan! Lanjut mancing...")
