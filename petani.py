@@ -98,6 +98,8 @@ state = {
     "maling": {"aktif": False, "interval": 4, "pause": False},
     "ternak": {"aktif": False, "interval": 910, "pause": False},
     "ternakkhusus": {"aktif": False, "pause": False},
+    "animalhouse": {"aktif": False, "interval": 610, "pause": False},
+    "greenhouse": {"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180, "pause": False},
     "energi_habis": False
 }
 
@@ -151,7 +153,7 @@ async def loop_maling():
         print("⚠️ Tidak ada lokasi maling, loop maling dibatalkan.")
         return
     print(">> Loop Maling dimulai")
-    await safe_send("🦹‍♂️ Auto Maling dimulai", PRIVATE_LOG_CHAT)
+    await client.send_message(PRIVATE_LOG_CHAT, "🦹‍♂️ Auto Maling dimulai")
     while data["aktif"]:
         while data.get("pause", False):
             await asyncio.sleep(5)
@@ -169,13 +171,13 @@ async def loop_maling():
                 break
             await asyncio.sleep(0.5)
     print(">> Loop Maling berhenti")
-    await safe_send("🦹‍♂️ Auto Maling dimatikan", PRIVATE_LOG_CHAT)
+    await client.send_message(PRIVATE_LOG_CHAT, "🦹‍♂️ Auto Maling dimatikan")
 
 # === LOOP TERNAK KHUSUS ===
 async def loop_ternakkhusus():
     data = state["ternakkhusus"]
     print(">> Loop Ternak Khusus dimulai")
-    await safe_send("🐮 Auto Ternak Khusus dimulai", PRIVATE_LOG_CHAT)
+    await client.send_message(PRIVATE_LOG_CHAT, "🐮 Auto Ternak Khusus dimulai")
 
     while data["aktif"]:
         while data.get("pause", False):
@@ -196,13 +198,13 @@ async def loop_ternakkhusus():
                 break
             await asyncio.sleep(0.5)
     print(">> Loop Ternak Khusus berhenti")
-    await safe_send("🐮 Auto Ternak Khusus dimatikan", PRIVATE_LOG_CHAT)
+    await client.send_message(PRIVATE_LOG_CHAT, "🐮 Auto Ternak Khusus dimatikan")
 
 # === LOOP GRUP DANAU ===
 async def loop_grup_danau():
     data = state["fishing"]
     print(">> Loop Grup Danau dimulai")
-    await safe_send_d("🎣 Auto Mancing Grup Danau dimulai", PRIVATE_LOG_CHAT)
+    await client.send_message(PRIVATE_LOG_CHAT, "🎣 Auto Mancing Grup Danau dimulai")
     while data["aktif"]:
         while data.get("pause", False):
             await asyncio.sleep(5)
@@ -213,13 +215,31 @@ async def loop_grup_danau():
                 break
             await asyncio.sleep(0.5)
     print(">> Loop Grup Danau berhenti")
-    await safe_send_d("🎣 Auto Mancing Grup Danau berhenti.", PRIVATE_LOG_CHAT)
+    await client.send_message(PRIVATE_LOG_CHAT, "🎣 Auto Mancing Grup Danau berhenti.")
+
+# === LOOP ANIMAL HOUSE ===
+async def loop_animalhouse():
+    data = state["animalhouse"]
+    print(">> Loop Animal House dimulai")
+    await client.send_message(PRIVATE_LOG_CHAT, "🏠 Auto Animal House dimulai")
+    while data["aktif"]:
+        while data.get("pause", False):
+            await asyncio.sleep(5)
+        await asyncio.sleep(2)
+        await safe_send("/ah_1_AmbilHasil")
+        await asyncio.sleep(data["interval"])
+        for _ in range(10):  
+            if not data["aktif"]:
+                break
+            await asyncio.sleep(0.5)
+    print(">> Loop Animal House berhenti")
+    await client.send_message(PRIVATE_LOG_CHAT, "🏠 Auto Animal House dimatikan")
 
 # === LOOP SKY GARDEN ===
 async def loop_skygarden():
     data = state["skygarden"]
     print(">> Loop Sky Garden dimulai")
-    await safe_send("🌿 Auto Sky Garden dimulai", PRIVATE_LOG_CHAT)
+    await client.send_message(PRIVATE_LOG_CHAT, "🌿 Auto Sky Garden dimulai")
     while data["aktif"]:
         while data.get("pause", False):
             await asyncio.sleep(5)
@@ -230,13 +250,13 @@ async def loop_skygarden():
                 break
             await asyncio.sleep(0.5)
     print(">> Loop Sky Garden berhenti")
-    await safe_send("🌿 Auto Sky Garden dimatikan", PRIVATE_LOG_CHAT)
+    await client.send_message(PRIVATE_LOG_CHAT, "🌿 Auto Sky Garden dimatikan")
 
 # === LOOP TERNAK ===
 async def loop_ternak():
     data = state["ternak"]
     print(">> Loop ternak dimulai")
-    await safe_send("🐓 Auto Ternak dimulai", PRIVATE_LOG_CHAT)
+    await client.send_message(PRIVATE_LOG_CHAT, "🐓 Auto Ternak dimulai")
     while data["aktif"]:
         while data.get("pause", False):
             await asyncio.sleep(5)
@@ -249,6 +269,7 @@ async def loop_ternak():
                 break
             await asyncio.sleep(0.5)
     print(">> Loop Ternak berhenti")
+    await client.send_message(PRIVATE_LOG_CHAT, "🐓 Auto Ternak dimatikan")
 
 # === LOOP MASAK ===
 async def loop_masak():
@@ -265,7 +286,7 @@ async def loop_masak():
                 break
             await asyncio.sleep(0.5)
     data["aktif"] = False
-    await safe_send(f"✅ Masak selesai ({data['count']}x)", PRIVATE_LOG_CHAT)
+    await client.send_message(PRIVATE_LOG_CHAT, f"✅ Masak selesai ({data['count']}x)")
     print(">> Loop Masak berhenti")
 
 # === LOOP MASAK X ===
@@ -283,22 +304,20 @@ async def loop_masak_x():
                 break
             await asyncio.sleep(0.5)
     data["aktif"] = False
-    await safe_send_x(f"✅ Masak selesai ({data['count']}x)", PRIVATE_LOG_CHAT)
+    await client.send_message(PRIVATE_LOG_CHAT, f"✅ Masak selesai ({data['count']}x)")
     print(">> Loop Masak berhenti")
 
 # === LOOP MANCING ===
 async def loop_mancing():
     data = state["mancing"]
     lokasi = data.get("lokasi")
-    alat = data.get("alat", "pancing").lower()
-
+    alat = data.get("alat", " Tarik Pancing")
 
     print(f">> Loop Mancing dimulai di {lokasi} pakai {alat.capitalize()} (Bot: {BOT_USERNAME})")
 
     # Kirim lokasi pertama kali
     await safe_send(lokasi, BOT_USERNAME)
     await asyncio.sleep(3)
-
 
     while data["aktif"]:
         # Kalau sedang di-pause, tunggu dulu
@@ -318,9 +337,8 @@ async def loop_mancing():
                 break
             await asyncio.sleep(0.5)
 
-
     print(">> Loop Mancing berhenti")
-    await safe_send("🎣 Auto Mancing berhenti.", PRIVATE_LOG_CHAT)
+    await client.send_message(PRIVATE_LOG_CHAT, "🎣 Auto Mancing berhenti.")
 
 # === LOOP MANCING X===
 async def loop_mancing_x():
@@ -356,7 +374,7 @@ async def loop_mancing_x():
 
 
     print(">> Loop Mancing berhenti")
-    await safe_send_x("🎣 Auto Mancing berhenti.", PRIVATE_LOG_CHAT)
+    await client.send_message(PRIVATE_LOG_CHAT, "🎣 Auto Mancing berhenti.")
 
 
 # === LOOP MACUL (PRIBADI / GUILD / GLOBAL) ===
@@ -388,6 +406,30 @@ async def loop_macul(name="macul"):
                 break
             await asyncio.sleep(0.5)
     print(f">> Loop {name} berhenti")
+
+
+# === LOOP GREENHOUSE ===
+async def loop_greenhouse():
+    data = state["greenhouse"]
+    durasi = data.get("durasi", 180)
+    print(f">> Mulai Greenhouse: {data['tanaman']} ({data['jumlah']} pohon, {durasi}s)")
+    
+    while data["aktif"]:
+        while data.get("pause", False):
+            await asyncio.sleep(5)
+        await safe_send(f"/gh_1_tanam_{data['tanaman']}_{data['jumlah']}", BOT_USERNAME)
+        await asyncio.sleep(durasi)
+        await safe_send("/gh_1_panen", BOT_USERNAME)
+        for _ in range(10):  
+            if not data["aktif"]:
+                break
+            await asyncio.sleep(0.5)
+    print(">> Loop Greenhouse berhenti")
+
+
+
+
+
 
 # ---------------- STOP ALL ----------------
 def stop_all():
@@ -427,6 +469,13 @@ async def cmd_owner(event):
         if not state["fishing"]["aktif"]:
             state["fishing"]["aktif"] = True
             asyncio.create_task(loop_grup_danau())
+
+        # === ANIMAL HOUSE ===
+        if not state["animalhouse"]["aktif"]:
+            state["animalhouse"]["aktif"] = True
+            asyncio.create_task(loop_animalhouse())
+
+            await event.reply("✅ Semua loop diaktifkan.")
             
 
         return
@@ -454,6 +503,11 @@ async def cmd_owner(event):
         if state["ternakkhusus"]["aktif"]:
             state["ternakkhusus"]["aktif"] = False
             stop_msgs.append("🐮 Auto Ternak Khusus dimatikan.")
+
+        # === ANIMAL HOUSE ===
+        if state["animalhouse"]["aktif"]:
+            state["animalhouse"]["aktif"] = False
+            stop_msgs.append("🏠 Auto Animal House dimatikan.")
 
         if stop_msgs:
             await event.reply("\n".join(stop_msgs))
@@ -533,6 +587,24 @@ async def cmd_owner(event):
             await event.reply("⏹ Auto Mancing Grup Danau dimatikan.")
         else:
             await event.reply("❗ Auto Mancing Grup Danau belum aktif.")
+        return
+
+    # === ANIMAL HOUSE ===
+    if lmsg in ("ah on", "/ah on", "semua on","/semua on"):
+        if not state["animalhouse"]["aktif"]:
+            state["animalhouse"]["aktif"] = True
+            await event.reply("🏠 Auto Animal House diaktifkan.")
+            asyncio.create_task(loop_animalhouse())
+        else:
+            await event.reply("❗ Auto Animal House sudah aktif.")
+        return
+    
+    if lmsg in ("ah off", "/ah off", "semua off","/semua off"):
+        if state["animalhouse"]["aktif"]:
+            state["animalhouse"]["aktif"] = False
+            await event.reply("⏹ Auto Animal House dimatikan.")
+        else:
+            await event.reply("❗ Auto Animal House belum aktif.")
         return
 
     # === SKY GARDEN ===
@@ -724,49 +796,62 @@ async def cmd_owner(event):
                 await event.reply(f"Format: {key} <nama> <jumlah>")
                 return
 
-    # === STOP ===
+    # === GREENHOUSE ===
+    if lmsg == "gh":
+        load_tanaman()
+        state["greenhouse"].update({"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180, "menunggu_input": True})
+        await event.reply("🌱 Mau tanam apa di Greenhouse? (gh <nama> <jumlah>)")
+        return
+    
+    # One-line format: gh <nama> <jumlah>
+    if lmsg.startswith("gh ") or lmsg.startswith("/gh "):
+        parts = msg.replace("/","").split()
+        if len(parts)>=3 and parts[1].strip() and parts[2].isdigit():
+            tanaman = parts[1].strip().lower()
+            jumlah = int(parts[2])
+            durasi = tanaman_data.get(tanaman, 180)
+            state["greenhouse"].update({
+                "aktif": True,
+                "tanaman": tanaman,
+                "jumlah": jumlah,
+                "durasi": durasi,
+                "menunggu_input": False
+            })
+            await event.reply(f"🌱 Mulai Greenhouse {tanaman} ({jumlah} pohon, {durasi}s)")
+            asyncio.create_task(loop_greenhouse())
+            return
+        else:
+            await event.reply("Format: gh <nama> <jumlah>")
+            return
+
+
+
+    # === STOP ALL ===
     if lmsg.startswith("stop"):
-        if lmsg in ("stop","stop_all"):
+        parts = lmsg.split()
+        if len(parts) == 1 or parts[0] in ("stop_all", "/stop_all"):
             stop_all()
             await event.reply("⏹ Semua loop dihentikan.")
             return
-        mode = lmsg.replace("stop_","")
-        if mode in state and state[mode]["aktif"]:
+
+        # contoh: stop mancing_x atau stop mancing x
+        mode = parts[1] if len(parts) > 1 else None
+        if len(parts) > 2:
+            mode += f"_{parts[2]}"
+
+        if mode and mode in state and state[mode]["aktif"]:
             state[mode]["aktif"] = False
             await event.reply(f"⏹ Loop {mode} dihentikan.")
         else:
-            await event.reply(f"❗ Tidak ada loop {mode} aktif / format salah")
+            await event.reply("❗ Tidak ada loop aktif / format salah.")
         return
+
         
     print(f"❗ Perintah tidak dikenali: {msg}")
 
 
 
 # ---------------- BOT HANDLER ----------------
-# === LOOP MANCING ===
-async def loop_mancing():
-    data = state["mancing"]
-    lokasi = data.get("lokasi")
-    spot = lokasi
-    alat = data.get("alat", "Tarik Pancing")  # default alat jika belum diatur
-    print(f">> Loop Mancing dimulai di {lokasi} (Bot: {BOT_USERNAME})")
-
-    # kirim lokasi pertama kali
-    await safe_send(lokasi, BOT_USERNAME)
-    await asyncio.sleep(3)
-
-    while data["aktif"]:
-        # pause handler
-        while data.get("pause", False):
-            await asyncio.sleep(5)
-
-        for _ in range(10):  
-            if not data["aktif"]:
-                break
-            await asyncio.sleep(0.5)
-    print(">> Loop Mancing berhenti")
-    await safe_send("🎣 Auto Mancing berhenti.", PRIVATE_LOG_CHAT)
-
 
 # === EVENT HANDLER MANCING ===
 @client.on(events.NewMessage(incoming=True, chats=BOT_USERNAME))
@@ -798,38 +883,6 @@ async def handle_mancing_final(event):
                     return
                                 
 
-
-    if "/tidur" in msg or "/sleep" in msg:
-        print("⚠️ Energi habis, mencoba restore...")
-        data["restore_mode"] = True  # tandai sedang restore
-        state["energi_habis"] = True
-        for v in state.values():
-            if isinstance(v, dict) and "pause" in v:
-                v["pause"] = True
-        for i in range(5):  # maksimal 10 kali percobaan
-            if not data.get("restore_mode"):
-                break  # keluar kalau sudah sukses
-            await asyncio.sleep(3)
-            await safe_send_cepat("/restore", BOT_USERNAME)
-            print(f"[RESTORE TRY] {i+1}/10")
-            await asyncio.sleep(5)
-        return
-
-    # Jika berhasil dipulihkan → hentikan mode restore
-    if "berhasil dipulihkan" in msg or "Energi berhasil dipulihkan" in msg:
-        state["energi_habis"] = False
-        for v in state.values():
-            if isinstance(v, dict) and "pause" in v:
-                v["pause"] = False
-        
-        if data.get("restore_mode"):
-            data["restore_mode"] = False
-            print("✅ Energi berhasil dipulihkan! Lanjut mancing...")
-        await asyncio.sleep(3)
-        await safe_send(lokasi, BOT_USERNAME)
-        return
-
-
     # 🪝 Indikator memancing (hasil tangkap, skill, dsb)
     if any(x in msg for x in [
         "memancing", "fishing skill", "kamu mendapatkan", "berhasil menangkap",
@@ -838,6 +891,36 @@ async def handle_mancing_final(event):
         await human_sleep(1, 2)
         await safe_send(lokasi, BOT_USERNAME)
         print(f"↻ Lanjut mancing di {lokasi}")
+
+# === EVENT HANDLER RESTORE ===
+@client.on(events.NewMessage(incoming=True, chats=BOT_USERNAME))
+async def handle_restore(event):
+    msg = (event.raw_text or "").lower()
+
+    # Jika energi habis
+    if "/tidur" in msg or "/sleep" in msg:
+        print("⚠️ Energi habis, mencoba restore...")
+        state["energi_habis"] = True
+        for v in state.values():
+            if isinstance(v, dict) and "pause" in v:
+                v["pause"] = True
+        for i in range(5):
+            await asyncio.sleep(3)
+            if not state.get("energi_habis", True):
+                print("🛑 Energi sudah pulih, hentikan percobaan restore.")
+                break
+            await safe_send_cepat("/restore", BOT_USERNAME)
+            print(f"[RESTORE TRY] {i+1}/5")
+            await asyncio.sleep(5)
+        return
+
+    # Jika sudah berhasil dipulihkan
+    if "berhasil dipulihkan" in msg or "energi berhasil dipulihkan" in msg:
+        print("✅ Energi berhasil dipulihkan (global)")
+        state["energi_habis"] = False
+        for v in state.values():
+            if isinstance(v, dict) and "pause" in v:
+                v["pause"] = False
 
 
 # === BOT 2 HANDLER (untuk Mancing X) ===
@@ -887,10 +970,10 @@ async def main():
     load_tanaman()
     asyncio.create_task(message_worker())
     msg_intro = ("Bot siap ✅\n\nCommand:\n"
-                 "- masak → lalu kirim kode masak (Bot Alpha)\n"
-                 "- masak x → lalu kirim kode masak (Bot X)\n"
-                 "- mancing → lalu kirim lokasi (Bot Alpha)\n"
-                 "- mancing x → lalu kirim lokasi (Bot X)\n"
+                 "- masak → (Bot Alpha)\n"
+                 "- masak x → (Bot X)\n"
+                 "- mancing → (Bot Alpha)\n"
+                 "- mancing x → (Bot X)\n"
                  "- macul <tanaman> <jumlah>\n"
                  "- macul_guild <tanaman> <jumlah>\n"
                  "- macul_global <tanaman> <jumlah>\n"
@@ -899,7 +982,9 @@ async def main():
                  "- tr on / tr off (ternak biasa)\n"
                  "- fd on / fd off (fishing danau)\n"
                  "- maling on / maling off (auto maling)\n"
-                 "- semua on / semua off (aktifkan/nonaktifkan fitur TK SG dan TR)\n"
+                 "- ah on / ah off (animal house)\n"
+                 "- gh <tanaman> <jumlah> (greenhouse)\n"
+                 "- semua on / semua off\n"
                  "- stop atau stop_[mode]")
     await safe_send(msg_intro, "me")
     await client.run_until_disconnected()
