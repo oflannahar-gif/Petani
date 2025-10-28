@@ -181,22 +181,19 @@ async def loop_ternakkhusus():
 
     while data["aktif"]:
         while data.get("pause", False):
-            await asyncio.sleep(5)  # tunggu saat pause
-        now = datetime.datetime.now()
-        next_hour = (now + datetime.timedelta(hours=1)).replace(minute=0, second=0, microsecond=0)
-        wait_time = (next_hour - now).total_seconds()
-        print(f"Menunggu {int(wait_time // 60)} menit hingga jam {next_hour.hour}:00")
-        await asyncio.sleep(wait_time + 15)  # tunggu hingga tepat jam berikutnya + 15 detik
-
-        if not data["aktif"]:
-            break
-
+            await asyncio.sleep(5)
+        await asyncio.sleep(2)
+        await safe_send("/pelihara_AnakArwana_85")
+        await asyncio.sleep(2)
         await safe_send("/beriMakanx")
-        print(f"[SEND] /beriMakanx → berikutnya akan dikirim pukul {next_hour.hour + 1}:00")
+        await asyncio.sleep(2)
+        await safe_send("/ambilHewan")
+        await asyncio.sleep(2)
         for _ in range(10):  
             if not data["aktif"]:
                 break
             await asyncio.sleep(0.5)
+    
     print(">> Loop Ternak Khusus berhenti")
     await client.send_message(PRIVATE_LOG_CHAT, "🐮 Auto Ternak Khusus dimatikan")
 
