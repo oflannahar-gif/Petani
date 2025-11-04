@@ -906,8 +906,8 @@ async def handle_restore(event):
             if not state.get("energi_habis", True):
                 print("🛑 Energi sudah pulih, hentikan percobaan restore.")
                 break
-            await safe_send_cepat("/restore", BOT_USERNAME)
-            print(f"[RESTORE TRY] {i+1}/5")
+            await safe_send_cepat("restore", BOT_USERNAME)
+            print(f"[RESTORE TRY] {i+1}/100")
             await asyncio.sleep(5)
         return
 
