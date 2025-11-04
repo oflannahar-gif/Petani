@@ -901,7 +901,7 @@ async def handle_restore(event):
         for v in state.values():
             if isinstance(v, dict) and "pause" in v:
                 v["pause"] = True
-        for i in range(5):
+        for i in range(100):
             await asyncio.sleep(3)
             if not state.get("energi_habis", True):
                 print("🛑 Energi sudah pulih, hentikan percobaan restore.")
@@ -933,7 +933,6 @@ async def bot_reply_x(event):
         for v in state.values():
             if isinstance(v, dict) and "pause" in v:
                 v["pause"] = False
-        await safe_send_x("⚡ Semua loop dilanjutkan kembali.")
         return
 
     # MANCING X
