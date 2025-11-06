@@ -901,13 +901,13 @@ async def handle_restore(event):
         for v in state.values():
             if isinstance(v, dict) and "pause" in v:
                 v["pause"] = True
-        for i in range(100):
+        for i in range(15):
             await asyncio.sleep(3)
             if not state.get("energi_habis", True):
                 print("🛑 Energi sudah pulih, hentikan percobaan restore.")
                 break
             await safe_send_cepat("restore", BOT_USERNAME)
-            print(f"[RESTORE TRY] {i+1}/100")
+            print(f"[RESTORE TRY] {i+1}/15")
             await asyncio.sleep(5)
         return
 
