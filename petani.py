@@ -5,6 +5,7 @@ import asyncio
 import random
 import logging
 import datetime
+import re
 
 from dotenv import load_dotenv
 from telethon import TelegramClient, events
@@ -94,6 +95,7 @@ state = {
     "macul_guild": {"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180, "pause": False},
     "macul_global": {"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180, "pause": False},
     "skygarden": {"aktif": False, "interval": 420, "pause": False},
+    "sg_merge": {"aktif": False},
     "fishing": {"aktif": False, "interval": 270, "pause": False},
     "maling": {"aktif": False, "interval": 4, "pause": False},
     "ternak": {"aktif": False, "interval": 910, "pause": False},
@@ -248,6 +250,92 @@ async def loop_skygarden():
             await asyncio.sleep(0.5)
     print(">> Loop Sky Garden berhenti")
     await client.send_message(PRIVATE_LOG_CHAT, "🌿 Auto Sky Garden dimatikan")
+
+# === LOOP SG MERGE ===
+import asyncio
+import re
+import random
+from datetime import datetime
+
+sg_merge_running = False
+
+def waktu():
+    return datetime.now().strftime("[%H:%M:%S]")
+
+async def loop_sg_merge(client, BOT_USERNAME):
+    global sg_merge_running
+    if sg_merge_running:
+        print(f"{waktu()} ⚠️ Loop SG Merge sudah berjalan, abaikan panggilan baru.")
+        return
+
+    sg_merge_running = True
+    print(f"{waktu()} 🌿 Mulai loop auto gabung SkyGarden (mode ultra cepat)...")
+
+    try:
+        await client.send_message(BOT_USERNAME, "/sg_gabung")
+        await asyncio.sleep(1)
+
+        async for event in client.iter_messages(BOT_USERNAME, limit=5):
+            text = event.raw_text or ""
+            if "/sg_merge_" not in text:
+                continue
+
+            baris = re.findall(r"(/sg_merge_\S+)\s+(\d+)x", text)
+            print(f"{waktu()} 📦 Ditemukan {len(baris)} item buah untuk dicek.")
+
+            for cmd, jumlah_str in baris:
+                jumlah = int(jumlah_str)
+                if jumlah < 15:
+                    print(f"{waktu()} ⏭️ {cmd} dilewati (jumlah {jumlah} < 15)")
+                    continue
+
+                print(f"{waktu()} 🍇 Mulai merge {cmd} ({jumlah} buah)...")
+
+                # Loop cepat tanpa nunggu respon, langsung klik tiap 0.6–0.9 detik
+                while jumlah >= 15:
+                    # kirim ulang perintah merge
+                    asyncio.create_task(client.send_message(BOT_USERNAME, cmd))
+                    await asyncio.sleep(random.uniform(1.0, 1.3))
+
+                    # ambil pesan terbaru (langsung, jangan tunggu event)
+                    msg = await client.get_messages(BOT_USERNAME, limit=1)
+                    if not msg:
+                        continue
+
+                    msg = msg[0]
+                    if msg.buttons:
+                        tombol_ditemukan = False
+                        for row in msg.buttons:
+                            for btn in row:
+                                if "Gabung 15" in (btn.text or ""):
+                                    tombol_ditemukan = True
+                                    jumlah -= 15
+                                    print(f"{waktu()} ⚡ Kirim klik 'Gabung 15' ({cmd}), sisa {jumlah}")
+                                    # klik tanpa menunggu respon
+                                    asyncio.create_task(btn.click())
+                                    break
+                            if tombol_ditemukan:
+                                break
+                    else:
+                        print(f"{waktu()} ⚠️ Tidak ada tombol di pesan terakhir {cmd}")
+                        break
+
+                    # delay kecil agar tidak dianggap spam
+                    await asyncio.sleep(random.uniform(1.0, 1.3))
+
+                print(f"{waktu()} 🍀 Selesai merge {cmd}")
+
+            print(f"{waktu()} 🎉 Semua buah yang memenuhi syarat telah digabung!")
+            break
+
+    except Exception as e:
+        print(f"{waktu()} [ERROR LOOP SG MERGE ULTRA] {e}")
+
+    finally:
+        sg_merge_running = False
+        print(f"{waktu()} ✅ Loop SG Merge selesai, kembali ke loop utama.")
+
+
 
 # === LOOP TERNAK ===
 async def loop_ternak():
@@ -490,7 +578,7 @@ async def cmd_owner(event):
         if state["skygarden"]["aktif"]:
             state["skygarden"]["aktif"] = False
             stop_msgs.append("🌿 Auto Sky Garden dimatikan.")
-
+              
         # === TERNAK ===
         if state["ternak"]["aktif"]:
             state["ternak"]["aktif"] = False
@@ -620,6 +708,16 @@ async def cmd_owner(event):
             await event.reply("⏹ Auto Sky Garden dimatikan.")
         else:
             await event.reply("❗ Auto Sky Garden belum aktif.")
+        return
+
+    # === SG MERGE ===
+    if lmsg in ("sg merge", "/sg merge"):
+        if not state["sg_merge"]["aktif"]:
+            state["sg_merge"]["aktif"] = True
+            await event.reply("🌿 Auto SG Merge diaktifkan.")
+            asyncio.create_task(loop_sg_merge(client, BOT_USERNAME))
+        else:
+            await event.reply("❗ Auto SG Merge sudah aktif.")
         return
 
     # === MASAK ===
@@ -889,12 +987,26 @@ async def handle_mancing_final(event):
         await safe_send(lokasi, BOT_USERNAME)
         print(f"↻ Lanjut mancing di {lokasi}")
 
+
+# === EVENT HANDLER SG MERGE ===
+@client.on(events.NewMessage(incoming=True, chats=BOT_USERNAME))
+async def handle_mancing_final(event):
+    msg = (event.raw_text or "").lower()
+
+    # === TRIGGER AUTO MERGE KERANJANG ===
+    if "Keranjang buah tidak mencukupi" in msg:
+        print("⚠️ Keranjang penuh! Jalankan loop auto merge SkyGarden...")
+        asyncio.create_task(loop_sg_merge(client, BOT_USERNAME))
+
+
+    
+
 # === EVENT HANDLER RESTORE ===
 @client.on(events.NewMessage(incoming=True, chats=BOT_USERNAME))
 async def handle_restore(event):
     msg = (event.raw_text or "").lower()
 
-    # Jika energi habis
+        # Jika energi habis
     if "/tidur" in msg or "/sleep" in msg:
         print("⚠️ Energi habis, mencoba restore...")
         state["energi_habis"] = True
@@ -974,6 +1086,7 @@ async def main():
                  "- macul_guild <tanaman> <jumlah>\n"
                  "- macul_global <tanaman> <jumlah>\n"
                  "- sg on / sg off (sky garden)\n"
+                 "- sg merge (auto merge skygarden)\n"
                  "- tk on / tk off (ternak khusus)\n"
                  "- tr on / tr off (ternak biasa)\n"
                  "- fd on / fd off (fishing danau)\n"
