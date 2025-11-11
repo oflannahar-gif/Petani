@@ -711,13 +711,21 @@ async def cmd_owner(event):
         return
 
     # === SG MERGE ===
-    if lmsg in ("sg merge", "/sg merge"):
+    if lmsg in ("sgm on", "/sgm on"):
         if not state["sg_merge"]["aktif"]:
             state["sg_merge"]["aktif"] = True
             await event.reply("🌿 Auto SG Merge diaktifkan.")
             asyncio.create_task(loop_sg_merge(client, BOT_USERNAME))
         else:
             await event.reply("❗ Auto SG Merge sudah aktif.")
+        return
+    
+    if lmsg in ("sgm off", "/sgm off"):
+        if state["sg_merge"]["aktif"]:
+            state["sg_merge"]["aktif"] = False
+            await event.reply("⏹ Auto SG Merge dimatikan.")
+        else:
+            await event.reply("❗ Auto SG Merge belum aktif.")
         return
 
     # === MASAK ===
