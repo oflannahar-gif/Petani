@@ -99,7 +99,7 @@ state = {
     "sg_merge": {"aktif": False},
     "cb": {"aktif": False},
     "fishing": {"aktif": False, "interval": 270, "pause": False},
-    "maling": {"aktif": False, "interval": 4, "pause": False},
+    "maling": {"aktif": False, "interval": 615, "pause": False},
     "ternak": {"aktif": False, "interval": 910, "pause": False},
     "ternakkhusus": {"aktif": False, "pause": False},
     "animalhouse": {"aktif": False, "interval": 610, "pause": False},
@@ -132,7 +132,7 @@ def load_tanaman():
 
 # ---------------- LOAD DATA MALING ----------------
 def load_maling():
-    if not os.path.exists("maling.txt"):
+    if not os.path.exists("Donasi.txt"):
         print("⚠️ File maling.txt tidak ditemukan.")
         return []
     lokasi_maling = []
@@ -1144,12 +1144,10 @@ async def handle_mancing_final(event):
     msg = (event.raw_text or "").lower()
 
     # === TRIGGER AUTO MERGE KERANJANG ===
-    if "Keranjang buah tidak mencukupi" in msg:
+    if "keranjang buah tidak mencukupi" in msg:
         print("⚠️ Keranjang penuh! Jalankan loop auto merge SkyGarden...")
         asyncio.create_task(loop_sg_merge(client, BOT_X, state))
-
-
-    
+  
 
 # === EVENT HANDLER RESTORE ===
 @client.on(events.NewMessage(incoming=True, chats=BOT_USERNAME))
@@ -1182,44 +1180,47 @@ async def handle_restore(event):
                 v["pause"] = False
 
 
-# === BOT 2 HANDLER (untuk Mancing X) ===
-@client.on(events.NewMessage(from_users=BOT_X))
-async def bot_reply_x(event):
-    text = (event.raw_text or "").lower()
-    print(f"[BOT_X] {text[:120]}...")
 
-    # ENERGI PULIH → RESUME SEMUA LOOP
-    if "energi berhasil dipulihkan" in text:
-        print("✅ Energi pulih, semua loop dilanjutkan.")
-        state["energi_habis"] = False
-        for v in state.values():
-            if isinstance(v, dict) and "pause" in v:
-                v["pause"] = False
+
+# === BOT 2 HANDLER (untuk Mancing X) ===
+@client.on(events.NewMessage(incoming=True, chats=BOT_X))
+async def handle_mancing_final(event):
+    msg = (event.raw_text or "").lower()
+    data = state.get("mancing", {})
+    if not data.get("aktif") or not data.get("lokasi"):
         return
 
-    # MANCING X
-    s = state["mancing_x"]
-    if s["aktif"] and event.buttons:
-        alat = s.get("alat", "pancing")
+    lokasi = data["lokasi"]
+    alat = data.get("alat", "pancing").lower()
+
+    # ✅ Klik tombol "Tarik" langsung kalau ada
+    if event.buttons:
         for row in event.buttons:
             for button in row:
-                if alat == "pancing" and "Tarik Alat Pancing" in (button.text or ""):
+                teks = (button.text or "").lower()
+                if alat == "pancing" and ("tarik alat pancing" in teks or "pull the rod" in teks):
                     await human_sleep()
                     await button.click()
+                    data["last_click"] = asyncio.get_event_loop().time()
                     print("🎣 Klik 'Tarik Alat Pancing'")
-                    s["last_click"] = asyncio.get_event_loop().time()
                     return
-                elif alat == "jala" and "Tarik Jala" in (button.text or ""):
+                elif alat == "jala" and ("tarik jala" in teks or "pull the net" in teks):
                     await human_sleep()
                     await button.click()
+                    data["last_click"] = asyncio.get_event_loop().time()
                     print("🎣 Klik 'Tarik Jala'")
-                    s["last_click"] = asyncio.get_event_loop().time()
                     return
-        
-        if "kamu mendapatkan" or "Kamu berhasil menangkap" in text:
-            await human_sleep(1,2)
-            await safe_send_x(s["lokasi"], BOT_X)
-            print(f">> Kirim ulang lokasi: {s['lokasi']}, → Maifam X ")
+                                
+
+    # 🪝 Indikator memancing (hasil tangkap, skill, dsb)
+    if any(x in msg for x in [
+        "memancing", "fishing skill", "kamu mendapatkan", "berhasil menangkap",
+        "energi berhasil dipulihkan", "restored", "kamu tidak sedang memancing"
+    ]):
+        await human_sleep(1, 2)
+        await safe_send(lokasi, BOT_X)
+        print(f"↻ Lanjut mancing di {lokasi}")
+
 
 # ---------------- MAIN ----------------
 async def main():
