@@ -136,7 +136,7 @@ def load_maling():
         print("⚠️ File maling.txt tidak ditemukan.")
         return []
     lokasi_maling = []
-    with open("maling.txt", "r", encoding="utf-8") as f:
+    with open("Donasi.txt", "r", encoding="utf-8") as f:
         for raw in f:
             line = raw.strip()
             if line and not line.startswith("#"):
