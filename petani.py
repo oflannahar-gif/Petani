@@ -10,6 +10,7 @@ import re
 from dotenv import load_dotenv
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
+from datetime import datetime
 
 # ---------------- CONFIG ----------------
 load_dotenv("kunci.env")
@@ -96,6 +97,7 @@ state = {
     "macul_global": {"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180, "pause": False},
     "skygarden": {"aktif": False, "interval": 420, "pause": False},
     "sg_merge": {"aktif": False},
+    "cb": {"aktif": False},
     "fishing": {"aktif": False, "interval": 270, "pause": False},
     "maling": {"aktif": False, "interval": 4, "pause": False},
     "ternak": {"aktif": False, "interval": 910, "pause": False},
@@ -252,89 +254,197 @@ async def loop_skygarden():
     await client.send_message(PRIVATE_LOG_CHAT, "🌿 Auto Sky Garden dimatikan")
 
 # === LOOP SG MERGE ===
-import asyncio
-import re
-import random
-from datetime import datetime
-
 sg_merge_running = False
 
 def waktu():
     return datetime.now().strftime("[%H:%M:%S]")
 
-async def loop_sg_merge(client, BOT_USERNAME):
+async def loop_sg_merge(client, BOT_X, state):
     global sg_merge_running
+
     if sg_merge_running:
         print(f"{waktu()} ⚠️ Loop SG Merge sudah berjalan, abaikan panggilan baru.")
         return
 
     sg_merge_running = True
-    print(f"{waktu()} 🌿 Mulai loop auto gabung SkyGarden (mode ultra cepat)...")
+    print(f"{waktu()} 🌿 Auto SG Merge dimulai (setiap 2 jam).")
 
     try:
-        await client.send_message(BOT_USERNAME, "/sg_gabung")
-        await asyncio.sleep(1)
+        while True:
+            # 🔒 cek status tiap loop supaya bisa dimatikan kapan pun
+            if not state["sg_merge"]["aktif"]:
+                print(f"{waktu()} ⏹️ Auto SG Merge dimatikan secara manual.")
+                break
 
-        async for event in client.iter_messages(BOT_USERNAME, limit=5):
-            text = event.raw_text or ""
-            if "/sg_merge_" not in text:
-                continue
+            print(f"{waktu()} 🔁 Mengecek SkyGarden...")
 
-            baris = re.findall(r"(/sg_merge_\S+)\s+(\d+)x", text)
-            print(f"{waktu()} 📦 Ditemukan {len(baris)} item buah untuk dicek.")
+            await client.send_message(BOT_X, "/sg_gabung")
+            await asyncio.sleep(2)
 
-            for cmd, jumlah_str in baris:
-                jumlah = int(jumlah_str)
-                if jumlah < 15:
-                    print(f"{waktu()} ⏭️ {cmd} dilewati (jumlah {jumlah} < 15)")
+            ada_buah_untuk_merge = False
+            ada_yang_dimerge = False  # 🔹 penanda merge aktif
+
+            async for event in client.iter_messages(BOT_X, limit=5):
+                text = event.raw_text or ""
+                if "/sg_merge_" not in text:
                     continue
 
-                print(f"{waktu()} 🍇 Mulai merge {cmd} ({jumlah} buah)...")
+                baris = re.findall(r"(/sg_merge_\S+)\s+(\d+)x", text)
+                ada_buah_untuk_merge = len(baris) > 0
+                print(f"{waktu()} 📦 Ditemukan {len(baris)} item buah untuk dicek.")
 
-                # Loop cepat tanpa nunggu respon, langsung klik tiap 0.6–0.9 detik
-                while jumlah >= 15:
-                    # kirim ulang perintah merge
-                    asyncio.create_task(client.send_message(BOT_USERNAME, cmd))
-                    await asyncio.sleep(random.uniform(1.0, 1.3))
+                for cmd, jumlah_str in baris:
+                    if not state["sg_merge"]["aktif"]:
+                        print(f"{waktu()} ⏹️ Auto SG Merge dimatikan di tengah proses.")
+                        return
 
-                    # ambil pesan terbaru (langsung, jangan tunggu event)
-                    msg = await client.get_messages(BOT_USERNAME, limit=1)
-                    if not msg:
+                    jumlah = int(jumlah_str)
+                    if jumlah < 15:
+                        print(f"{waktu()} ⏭️ {cmd} dilewati (jumlah {jumlah} < 15)")
                         continue
 
-                    msg = msg[0]
-                    if msg.buttons:
-                        tombol_ditemukan = False
-                        for row in msg.buttons:
-                            for btn in row:
-                                if "Gabung 15" in (btn.text or ""):
-                                    tombol_ditemukan = True
-                                    jumlah -= 15
-                                    print(f"{waktu()} ⚡ Kirim klik 'Gabung 15' ({cmd}), sisa {jumlah}")
-                                    # klik tanpa menunggu respon
-                                    asyncio.create_task(btn.click())
+                    ada_yang_dimerge = True
+                    print(f"{waktu()} 🍇 Mulai merge {cmd} ({jumlah} buah)...")
+
+                    while jumlah >= 15:
+                        if not state["sg_merge"]["aktif"]:
+                            print(f"{waktu()} ⏹️ Auto SG Merge dimatikan di tengah proses merge.")
+                            return
+
+                        asyncio.create_task(client.send_message(BOT_X, cmd))
+                        await asyncio.sleep(random.uniform(1.0, 1.3))
+
+                        msg = await client.get_messages(BOT_X, limit=1)
+                        if not msg:
+                            continue
+                        msg = msg[0]
+
+                        if msg.buttons:
+                            tombol_ditemukan = False
+                            for row in msg.buttons:
+                                for btn in row:
+                                    if "Gabung 15" in (btn.text or ""):
+                                        tombol_ditemukan = True
+                                        jumlah -= 15
+                                        print(f"{waktu()} ⚡ Klik 'Gabung 15' ({cmd}), sisa {jumlah}")
+                                        asyncio.create_task(btn.click())
+                                        break
+                                if tombol_ditemukan:
                                     break
-                            if tombol_ditemukan:
-                                break
-                    else:
-                        print(f"{waktu()} ⚠️ Tidak ada tombol di pesan terakhir {cmd}")
-                        break
+                        else:
+                            print(f"{waktu()} ⚠️ Tidak ada tombol di pesan terakhir {cmd}")
+                            break
 
-                    # delay kecil agar tidak dianggap spam
-                    await asyncio.sleep(random.uniform(1.0, 1.3))
+                        await asyncio.sleep(random.uniform(1.0, 1.3))
 
-                print(f"{waktu()} 🍀 Selesai merge {cmd}")
+                    print(f"{waktu()} 🍀 Selesai merge {cmd}")
 
-            print(f"{waktu()} 🎉 Semua buah yang memenuhi syarat telah digabung!")
-            break
+                print(f"{waktu()} 🎉 Semua buah yang memenuhi syarat telah dicoba merge.")
+                break
+
+            # === CEK ULANG SAMPAI BENAR-BENAR HABIS ===
+            if ada_buah_untuk_merge and ada_yang_dimerge:
+                if not state["sg_merge"]["aktif"]:
+                    break
+
+                print(f"{waktu()} 🔁 Mengecek ulang hasil merge...")
+                await asyncio.sleep(3)
+                await client.send_message(BOT_X, "/sg_gabung")
+                await asyncio.sleep(3)
+
+                teks_cek = ""
+                async for event in client.iter_messages(BOT_X, limit=5):
+                    teks_cek += event.raw_text or ""
+
+                if "/sg_merge_" in teks_cek:
+                    print(f"{waktu()} 🍏 Masih ada buah tersisa — lanjut merge lagi.")
+                    continue  # kembali ke while utama tanpa tunggu 2 jam
+                else:
+                    print(f"{waktu()} 🌾 Semua buah sudah habis — tidak ada yang bisa digabung.")
+
+            elif not ada_yang_dimerge:
+                print(f"{waktu()} ✅ Tidak ada buah dengan jumlah >= 15 — skip dan tunggu 2 jam.")
+
+            if not state["sg_merge"]["aktif"]:
+                break
+
+            print(f"{waktu()} 💤 Menunggu 2 jam sebelum cek berikutnya...")
+
+            # 💡 selama nunggu 2 jam, tetap cek apakah dimatikan
+            for _ in range(2 * 60 * 60):  # 7200 detik
+                if not state["sg_merge"]["aktif"]:
+                    print(f"{waktu()} ⏹️ Auto SG Merge dimatikan saat masa tunggu.")
+                    raise asyncio.CancelledError
+                await asyncio.sleep(1)
+
+    except asyncio.CancelledError:
+        pass
 
     except Exception as e:
         print(f"{waktu()} [ERROR LOOP SG MERGE ULTRA] {e}")
 
     finally:
         sg_merge_running = False
-        print(f"{waktu()} ✅ Loop SG Merge selesai, kembali ke loop utama.")
+        print(f"{waktu()} ✅ Loop SG Merge berhenti sepenuhnya.")
 
+# === LOOP CMD BEBAS ===
+cb_loop_running = False
+cb_tasks = {}
+
+def waktu():
+    return datetime.now().strftime("[%H:%M:%S]")
+
+# === LOOP CUSTOM COMMAND (CB) ===
+async def loop_cb_handler(client, BOT_X, state, safe_send_x):
+    global cb_loop_running, cb_tasks
+
+    if cb_loop_running:
+        print(f"{waktu()} ⚠️ Loop CB sudah berjalan.")
+        return
+
+    cb_loop_running = True
+    print(f"{waktu()} 🚀 Loop CB (Custom Command) aktif — ketik perintah dengan format /cmd interval.")
+
+    try:
+        while state["cb"]["aktif"]:
+            await asyncio.sleep(1)  # idle loop ringan
+        print(f"{waktu()} ⏹️ Loop CB dimatikan.")
+    except Exception as e:
+        print(f"{waktu()} [ERROR LOOP CB] {e}")
+    finally:
+        cb_loop_running = False
+        # hentikan semua task
+        for cmd, task in cb_tasks.items():
+            task.cancel()
+        cb_tasks.clear()
+        print(f"{waktu()} ✅ Semua CB task dibersihkan.")
+
+# === MENAMBAH COMMAND BARU ===
+async def start_cb_command(cmd_text, interval_menit, safe_send_x):
+    global cb_tasks
+
+    # jika sudah ada command sama, hentikan dulu
+    if cmd_text in cb_tasks:
+        cb_tasks[cmd_text].cancel()
+        print(f"{waktu()} 🔁 Reset loop lama untuk {cmd_text}")
+
+    async def cb_task():
+        print(f"{waktu()} 🌀 Mulai loop: {cmd_text} setiap {interval_menit} menit")
+        while True:
+            await safe_send_x(cmd_text)
+            print(f"{waktu()} 📤 Kirim: {cmd_text}")
+            await asyncio.sleep(interval_menit * 60)
+
+    task = asyncio.create_task(cb_task())
+    cb_tasks[cmd_text] = task
+
+# === MENGHENTIKAN SEMUA CB ===
+async def stop_all_cb():
+    global cb_tasks
+    for cmd, task in cb_tasks.items():
+        task.cancel()
+    cb_tasks.clear()
+    print(f"{waktu()} 🛑 Semua custom command dihentikan.")
 
 
 # === LOOP TERNAK ===
@@ -714,8 +824,8 @@ async def cmd_owner(event):
     if lmsg in ("sgm on", "/sgm on"):
         if not state["sg_merge"]["aktif"]:
             state["sg_merge"]["aktif"] = True
-            await event.reply("🌿 Auto SG Merge diaktifkan.")
-            asyncio.create_task(loop_sg_merge(client, BOT_USERNAME))
+            await event.reply("🌿 Auto SG Merge diaktifkan (setiap 2 jam).")
+            asyncio.create_task(loop_sg_merge(client, BOT_X, state))
         else:
             await event.reply("❗ Auto SG Merge sudah aktif.")
         return
@@ -726,6 +836,38 @@ async def cmd_owner(event):
             await event.reply("⏹ Auto SG Merge dimatikan.")
         else:
             await event.reply("❗ Auto SG Merge belum aktif.")
+        return
+
+    # === CB (CUSTOM COMMAND) ===
+    if lmsg in ("cb on", "/cb on"):
+        if not state["cb"]["aktif"]:
+            state["cb"]["aktif"] = True
+            await event.reply("🚀 Loop CB (Custom Command) diaktifkan.")
+            asyncio.create_task(loop_cb_handler(client, BOT_X, state, safe_send_x))
+        else:
+            await event.reply("❗ Loop CB sudah aktif.")
+        return
+    
+    if lmsg in ("cb off", "/cb off"):
+        if state["cb"]["aktif"]:
+            state["cb"]["aktif"] = False
+            await stop_all_cb()
+            await event.reply("⏹ Loop CB dimatikan.")
+        else:
+            await event.reply("❗ Loop CB belum aktif.")
+        return
+    
+    # === PARSING CUSTOM CMD ===
+    # Contoh format: /makan_HidanganRaja_1 60  → kirim tiap 60 menit
+    if lmsg.startswith("/"):
+        match = re.match(r"(/[\w_]+)\s+(\d+)", lmsg)
+        if match and state["cb"]["aktif"]:
+            cmd_text = match.group(1)
+            interval = int(match.group(2))
+            await start_cb_command(cmd_text, interval, safe_send_x)
+            await event.reply(f"✅ Menambahkan perintah `{cmd_text}` setiap {interval} menit.")
+        elif match and not state["cb"]["aktif"]:
+            await event.reply("⚠️ Nyalakan dulu CB Loop dengan `cb on`.")
         return
 
     # === MASAK ===
@@ -1004,7 +1146,7 @@ async def handle_mancing_final(event):
     # === TRIGGER AUTO MERGE KERANJANG ===
     if "Keranjang buah tidak mencukupi" in msg:
         print("⚠️ Keranjang penuh! Jalankan loop auto merge SkyGarden...")
-        asyncio.create_task(loop_sg_merge(client, BOT_USERNAME))
+        asyncio.create_task(loop_sg_merge(client, BOT_X, state))
 
 
     
@@ -1021,13 +1163,13 @@ async def handle_restore(event):
         for v in state.values():
             if isinstance(v, dict) and "pause" in v:
                 v["pause"] = True
-        for i in range(15):
+        for i in range(10):
             await asyncio.sleep(3)
             if not state.get("energi_habis", True):
                 print("🛑 Energi sudah pulih, hentikan percobaan restore.")
                 break
-            await safe_send_cepat("/makan_HidanganRaja_5", BOT_USERNAME)
-            print(f"[RESTORE TRY] {i+1}/15")
+            await safe_send_cepat("restore", BOT_USERNAME)
+            print(f"[RESTORE TRY] {i+1}/10")
             await asyncio.sleep(5)
         return
 
@@ -1094,7 +1236,8 @@ async def main():
                  "- macul_guild <tanaman> <jumlah>\n"
                  "- macul_global <tanaman> <jumlah>\n"
                  "- sg on / sg off (sky garden)\n"
-                 "- sg merge (auto merge skygarden)\n"
+                 "- sgm on / sgm off (sky garden merge)\n"
+                 "- cb on / cb off (custom command loop)\n"
                  "- tk on / tk off (ternak khusus)\n"
                  "- tr on / tr off (ternak biasa)\n"
                  "- fd on / fd off (fishing danau)\n"
