@@ -40,7 +40,7 @@ else:
 # ---------------- QUEUE ----------------
 message_queue = asyncio.Queue()
 
-PRIVATE_LOG_CHAT = -3339790698  # ID grup privat kamu
+PRIVATE_LOG_CHAT = "@CmdPetani"  # ID grup privat kamu
 
 # === SAFE SEND Bot Alpha ===
 async def safe_send(msg, to=None):
