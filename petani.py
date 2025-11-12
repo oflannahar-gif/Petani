@@ -1140,7 +1140,7 @@ async def handle_mancing_final(event):
 
 # === EVENT HANDLER SG MERGE ===
 @client.on(events.NewMessage(incoming=True, chats=BOT_USERNAME))
-async def handle_mancing_final(event):
+async def handle_sg_merge(event):
     msg = (event.raw_text or "").lower()
 
     # === TRIGGER AUTO MERGE KERANJANG ===
@@ -1184,9 +1184,9 @@ async def handle_restore(event):
 
 # === BOT 2 HANDLER (untuk Mancing X) ===
 @client.on(events.NewMessage(incoming=True, chats=BOT_X))
-async def handle_mancing_final(event):
+async def handle_mancing_x_final(event):
     msg = (event.raw_text or "").lower()
-    data = state.get("mancing", {})
+    data = state.get("mancing_x", {})
     if not data.get("aktif") or not data.get("lokasi"):
         return
 
@@ -1218,7 +1218,7 @@ async def handle_mancing_final(event):
         "energi berhasil dipulihkan", "restored", "kamu tidak sedang memancing"
     ]):
         await human_sleep(1, 2)
-        await safe_send(lokasi, BOT_X)
+        await safe_send_x(lokasi, BOT_X)
         print(f"↻ Lanjut mancing di {lokasi}")
 
 
