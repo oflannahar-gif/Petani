@@ -254,11 +254,47 @@ async def loop_skygarden():
     await client.send_message(PRIVATE_LOG_CHAT, "🌿 Auto Sky Garden dimatikan")
 
 # === LOOP SG MERGE ===
+import asyncio
+import re
+import random
+from datetime import datetime
+
 sg_merge_running = False
 
+# ================================================
+# LEVEL FILTER
+# ================================================
+LEVEL_ORDER = ["BIASA", "E", "D", "C", "B", "A", "S", "SS"]
+
+def ambil_level(nama: str) -> str:
+    # cek SS dulu
+    if nama.endswith("SS"):
+        return "SS"
+
+    # cek suffix 1 huruf
+    huruf = nama[-1].upper()
+    if huruf in ["E", "D", "C", "B", "A", "S"]:
+        return huruf
+
+    return "BIASA"
+
+def boleh_merge(cmd: str) -> bool:
+    nama = cmd.replace("/sg_merge_", "")
+    level = ambil_level(nama)
+    # boleh hanya BIASA, E, D
+    return LEVEL_ORDER.index(level) <= LEVEL_ORDER.index("D")
+
+
+# ================================================
+# WAKTU
+# ================================================
 def waktu():
     return datetime.now().strftime("[%H:%M:%S]")
 
+
+# ================================================
+# LOOP SG MERGE
+# ================================================
 async def loop_sg_merge(client, BOT_X, state):
     global sg_merge_running
 
@@ -271,7 +307,6 @@ async def loop_sg_merge(client, BOT_X, state):
 
     try:
         while True:
-            # 🔒 cek status tiap loop supaya bisa dimatikan kapan pun
             if not state["sg_merge"]["aktif"]:
                 print(f"{waktu()} ⏹️ Auto SG Merge dimatikan secara manual.")
                 break
@@ -282,7 +317,7 @@ async def loop_sg_merge(client, BOT_X, state):
             await asyncio.sleep(2)
 
             ada_buah_untuk_merge = False
-            ada_yang_dimerge = False  # 🔹 penanda merge aktif
+            ada_yang_dimerge = False
 
             async for event in client.iter_messages(BOT_X, limit=5):
                 text = event.raw_text or ""
@@ -291,6 +326,7 @@ async def loop_sg_merge(client, BOT_X, state):
 
                 baris = re.findall(r"(/sg_merge_\S+)\s+(\d+)x", text)
                 ada_buah_untuk_merge = len(baris) > 0
+
                 print(f"{waktu()} 📦 Ditemukan {len(baris)} item buah untuk dicek.")
 
                 for cmd, jumlah_str in baris:
@@ -299,10 +335,20 @@ async def loop_sg_merge(client, BOT_X, state):
                         return
 
                     jumlah = int(jumlah_str)
+
+                    # ========================================
+                    # FILTER LEVEL DI SINI
+                    # ========================================
+                    if not boleh_merge(cmd):
+                        print(f"{waktu()} ⛔ {cmd} dilewati (LEVEL terlalu tinggi)")
+                        continue
+
+                    # Filter jumlah
                     if jumlah < 15:
                         print(f"{waktu()} ⏭️ {cmd} dilewati (jumlah {jumlah} < 15)")
                         continue
 
+                    # Lolos — merge!
                     ada_yang_dimerge = True
                     print(f"{waktu()} 🍇 Mulai merge {cmd} ({jumlah} buah)...")
 
@@ -342,7 +388,9 @@ async def loop_sg_merge(client, BOT_X, state):
                 print(f"{waktu()} 🎉 Semua buah yang memenuhi syarat telah dicoba merge.")
                 break
 
-            # === CEK ULANG SAMPAI BENAR-BENAR HABIS ===
+            # ================================================
+            # CEK ULANG SAMPAI HABIS
+            # ================================================
             if ada_buah_untuk_merge and ada_yang_dimerge:
                 if not state["sg_merge"]["aktif"]:
                     break
@@ -358,7 +406,7 @@ async def loop_sg_merge(client, BOT_X, state):
 
                 if "/sg_merge_" in teks_cek:
                     print(f"{waktu()} 🍏 Masih ada buah tersisa — lanjut merge lagi.")
-                    continue  # kembali ke while utama tanpa tunggu 2 jam
+                    continue
                 else:
                     print(f"{waktu()} 🌾 Semua buah sudah habis — tidak ada yang bisa digabung.")
 
@@ -370,8 +418,8 @@ async def loop_sg_merge(client, BOT_X, state):
 
             print(f"{waktu()} 💤 Menunggu 2 jam sebelum cek berikutnya...")
 
-            # 💡 selama nunggu 2 jam, tetap cek apakah dimatikan
-            for _ in range(2 * 60 * 60):  # 7200 detik
+            # Cek setiap detik selama 2 jam
+            for _ in range(2 * 60 * 60):
                 if not state["sg_merge"]["aktif"]:
                     print(f"{waktu()} ⏹️ Auto SG Merge dimatikan saat masa tunggu.")
                     raise asyncio.CancelledError
@@ -386,6 +434,7 @@ async def loop_sg_merge(client, BOT_X, state):
     finally:
         sg_merge_running = False
         print(f"{waktu()} ✅ Loop SG Merge berhenti sepenuhnya.")
+
 
 # === LOOP CMD BEBAS ===
 cb_loop_running = False
