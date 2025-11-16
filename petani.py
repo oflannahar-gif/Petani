@@ -1350,26 +1350,34 @@ async def handle_mancing_x_final(event):
 @client.on(events.NewMessage(incoming=True, chats=BOT_X))
 async def handle_sg_upgrade_x(event):
     msg = (event.raw_text or "").lower()
-    
-    # Klik tombol "Confirm" untuk upgrade SG
-    await event.click(text='Confirm')
+    data = state.get("sg_upgrade", {})
+    if not data.get("aktif"):
+        return
 
-    # Jika Berhasil upgrade
-    if any(x in msg for x in [
-        "Berhasil",
-        "/sg_KeranjangBuah"   
-    ]):
-        await asyncio.sleep(2)
-        await safe_send_x("/sg_upgrade")
-        print("✅ SG Upgrade berhasil, lanjut upgrade lagi...")
+    # Klik tombol confirm hanya jika pesan berhubungan dengan upgrade
+    if "Upgrade keranjang buah" in msg or "menggunakan 5" in msg:
+        if event.buttons:
+            for row in event.buttons:
+                for btn in row:
+                    if (btn.text or "").lower() == "confirm":
+                        await btn.click()
+                        print("⚡ Klik Confirm Upgrade")
+                        return
+
+    # Jika upgrade berhasil
+    if "Berhasil mengupgrade keranjang" in msg or "keranjang buah menjadi" in msg or "/sg_KeranjangBuah" in msg:
+        await asyncio.sleep(1.5)
+        await safe_send_x("/sg_upgrade", BOT_X)
+        print("✅ SG Upgrade berhasil → lanjut upgrade")
+        return
 
     if any(x in msg for x in [
-        "Kamu memerlukan 5", "untuk mengupgrade keranjang"
+        "kamu memerlukan 5", "untuk mengupgrade keranjang"
     ]):
-        if state["sg_upgrade"]["aktif"]:
+        if data.get("aktif"):
             print("⚠️ Bahan tidak mencukupi! Hentikan loop SG Upgrade.")
-            state["sg_upgrade"]["aktif"] = False
-
+            data["aktif"] = False
+            return
 
 
 
