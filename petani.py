@@ -393,7 +393,7 @@ async def loop_sg_merge(client, BOT_X, state):
                         # kirim perintah merge
                         await safe_send_x(cmd)
                         print(f"{waktu()} 📤 Queue → {cmd}")
-
+                        await tunggu_balasan(BOT_X)
                         await asyncio.sleep(random.uniform(1.0, 1.3))
 
                         # baca pesan terakhir dan klik tombol Gabung 15 bila ada
@@ -456,7 +456,7 @@ async def loop_sg_merge(client, BOT_X, state):
             print(f"{waktu()} 💤 Menunggu 2 jam sebelum cek berikutnya...")
 
             # 💡 selama nunggu 2 jam, tetap cek apakah dimatikan
-            for _ in range(2 * 60 * 60):  # 7200 detik
+            for _ in range(1 * 60 * 60):  # 7200 detik
                 if not state["sg_merge"]["aktif"]:
                     print(f"{waktu()} ⏹️ Auto SG Merge dimatikan saat masa tunggu.")
                     raise asyncio.CancelledError
