@@ -98,6 +98,7 @@ state = {
     "skygarden": {"aktif": False, "interval": 420, "pause": False},
     "sg_merge": {"aktif": False},
     "cb": {"aktif": False},
+    "sg_upgrade": {"aktif": False},
     "fishing": {"aktif": False, "interval": 270, "pause": False},
     "maling": {"aktif": False, "interval": 615, "pause": False},
     "ternak": {"aktif": False, "interval": 910, "pause": False},
@@ -252,6 +253,25 @@ async def loop_skygarden():
             await asyncio.sleep(0.5)
     print(">> Loop Sky Garden berhenti")
     await client.send_message(PRIVATE_LOG_CHAT, "🌿 Auto Sky Garden dimatikan")
+
+# === LOOP SG UPGRADE ===
+async def loop_sg_upgrade():
+    data = state["sg_upgrade"]
+    print(">> Loop SG Upgrade dimulai")
+    await client.send_message(PRIVATE_LOG_CHAT, "🚀 Auto SG Upgrade dimulai")
+    while data["aktif"]:
+        while data.get("pause", False):
+            await asyncio.sleep(5)
+        await safe_send_x("/sg_upgrade", BOT_X)
+        await asyncio.sleep(10)  # tunggu 5 menit sebelum upgrade lagi
+        for _ in range(10):  
+            if not data["aktif"]:
+                break
+            await asyncio.sleep(0.5)
+    print(">> Loop SG Upgrade berhenti")
+    await client.send_message(PRIVATE_LOG_CHAT, "🚀 Auto SG Upgrade dimatikan")
+
+
 
 # === LOOP SG MERGE ===
 import asyncio
@@ -456,7 +476,7 @@ async def loop_sg_merge(client, BOT_X, state):
             print(f"{waktu()} 💤 Menunggu 2 jam sebelum cek berikutnya...")
 
             # 💡 selama nunggu 2 jam, tetap cek apakah dimatikan
-            for _ in range(1 * 60 * 60):  # 7200 detik
+            for _ in range(1 * 60 * 60):  # 3600 detik
                 if not state["sg_merge"]["aktif"]:
                     print(f"{waktu()} ⏹️ Auto SG Merge dimatikan saat masa tunggu.")
                     raise asyncio.CancelledError
@@ -906,6 +926,24 @@ async def cmd_owner(event):
         else:
             await event.reply("❗ Auto Sky Garden belum aktif.")
         return
+    
+    # === SG UPGRADE ===
+    if lmsg in ("sgu on", "/sgu on"):
+        if not state["sg_upgrade"]["aktif"]:
+            state["sg_upgrade"]["aktif"] = True
+            await event.reply("🚀 Auto SG Upgrade diaktifkan.")
+            asyncio.create_task(loop_sg_upgrade())
+        else:
+            await event.reply("❗ Auto SG Upgrade sudah aktif.")
+        return
+    
+    if lmsg in ("sgu off", "/sgu off"):
+        if state["sg_upgrade"]["aktif"]:
+            state["sg_upgrade"]["aktif"] = False
+            await event.reply("⏹ Auto SG Upgrade dimatikan.")
+        else:
+            await event.reply("❗ Auto SG Upgrade belum aktif.")
+        return
 
     # === SG MERGE ===
     if lmsg in ("sgm on", "/sgm on"):
@@ -1307,6 +1345,32 @@ async def handle_mancing_x_final(event):
         await human_sleep(1, 2)
         await safe_send_x(lokasi, BOT_X)
         print(f"↻ Lanjut mancing di {lokasi}")
+
+# ==== HANDLER BOT X SG UPGRADE ====
+@client.on(events.NewMessage(incoming=True, chats=BOT_X))
+async def handle_sg_upgrade_x(event):
+    msg = (event.raw_text or "").lower()
+    
+    # Klik tombol "Confirm" untuk upgrade SG
+    await event.click(text='Confirm')
+
+    # Jika Berhasil upgrade
+    if any(x in msg for x in [
+        "Berhasil",
+        "/sg_KeranjangBuah"   
+    ]):
+        await asyncio.sleep(2)
+        await safe_send_x("/sg_upgrade")
+        print("✅ SG Upgrade berhasil, lanjut upgrade lagi...")
+
+    if any(x in msg for x in [
+        "Kamu memerlukan 5", "untuk mengupgrade keranjang"
+    ]):
+        if state["sg_upgrade"]["aktif"]:
+            print("⚠️ Bahan tidak mencukupi! Hentikan loop SG Upgrade.")
+            state["sg_upgrade"]["aktif"] = False
+
+
 
 
 # ---------------- MAIN ----------------
