@@ -7,6 +7,7 @@ import logging
 import datetime
 import re
 
+
 from dotenv import load_dotenv
 from telethon import TelegramClient, events
 from telethon.sessions import StringSession
@@ -90,8 +91,8 @@ async def human_sleep(min_s=1.0, max_s=1.5):
 state = {
     "masak": {"aktif": False, "kode": None, "loops": 0, "count": 0, "pause": False, "menunggu_input": False},
     "masak_x": {"aktif": False, "kode": None, "loops": 0, "count": 0, "pause": False, "menunggu_input": False},
-    "mancing": {"aktif": False, "lokasi": None, "pause": False, "last_click": 0},
-    "mancing_x": {"aktif": False, "lokasi": None, "pause": False, "last_click": 0},
+    "mancing": {"aktif": False, "lokasi": None, "pause": False},
+    "mancing_x": {"aktif": False, "lokasi": None, "pause": False},
     "macul": {"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180, "target": BOT_USERNAME, "pause": False},
     "macul_guild": {"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180, "pause": False},
     "macul_global": {"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180, "pause": False},
@@ -271,14 +272,7 @@ async def loop_sg_upgrade():
     print(">> Loop SG Upgrade berhenti")
     await client.send_message(PRIVATE_LOG_CHAT, "🚀 Auto SG Upgrade dimatikan")
 
-
-
 # === LOOP SG MERGE ===
-import asyncio
-import re
-import random
-from datetime import datetime
-
 async def tunggu_balasan(bot_username, timeout=10):
     """
     Menunggu pesan baru dari bot dalam X detik.
@@ -333,7 +327,6 @@ def boleh_merge(cmd: str) -> bool:
     # hanya boleh merge level BIASA, E, D
     return LEVEL_ORDER.index(level) <= LEVEL_ORDER.index("D")
 
-
 # WAKTU (logging)
 def waktu():
     return datetime.now().strftime("[%H:%M:%S]")
@@ -348,6 +341,9 @@ async def loop_sg_merge(client, BOT_X, state):
 
     sg_merge_running = True
     print(f"{waktu()} 🌿 Auto SG Merge dimulai (setiap 1 jam).")
+
+    # penanda apakah SGM pernah nge-pause mancing_x
+    paused_mancing_x = False
 
     try:
         while True:
@@ -402,6 +398,15 @@ async def loop_sg_merge(client, BOT_X, state):
                     # 🔢 Hitung berapa kali maksimal bisa merge 15 buah
                     max_merge = jumlah // 15
                     ada_yang_dimerge = True
+
+                    # 🔸 PERTAMA KALI BENERAN MERGE → PAUSE MANCING X
+                    if (not paused_mancing_x 
+                        and "mancing_x" in state 
+                        and state["mancing_x"].get("aktif")):
+                        state["mancing_x"]["pause"] = True
+                        paused_mancing_x = True
+                        print(f"{waktu()} ⏸ Pause Auto Mancing X selama SG Merge berjalan.")
+
                     print(f"{waktu()} 🍇 Mulai merge {cmd} — total buah {jumlah}, rencana merge {max_merge}x")
 
                     # 🔁 Lakukan merge sebanyak max_merge kali
@@ -474,19 +479,26 @@ async def loop_sg_merge(client, BOT_X, state):
 
                 if "/sg_merge_" in teks_cek:
                     print(f"{waktu()} 🍏 Masih ada buah tersisa — lanjut merge lagi.")
-                    continue  # kembali ke while utama tanpa tunggu 2 jam
+                    continue  # kembali ke while utama tanpa tunggu 1 jam
                 else:
                     print(f"{waktu()} 🌾 Semua buah sudah habis — tidak ada yang bisa digabung.")
 
             elif not ada_yang_dimerge:
-                print(f"{waktu()} ✅ Tidak ada buah dengan jumlah >= 15 — skip dan tunggu 2 jam.")
+                print(f"{waktu()} ✅ Tidak ada buah dengan jumlah >= 15 — skip dan tunggu 1 jam.")
+
+            # 🔸 SAMPAI DI SINI, SIKLUS MERGE BERES → LANJUTKAN MANCING X KALAU TADI DIPAUSe
+            if paused_mancing_x:
+                if "mancing_x" in state and "pause" in state["mancing_x"]:
+                    state["mancing_x"]["pause"] = False
+                paused_mancing_x = False
+                print(f"{waktu()} ▶️ Lanjut Auto Mancing X setelah SG Merge selesai.")
 
             if not state["sg_merge"]["aktif"]:
                 break
 
-            print(f"{waktu()} 💤 Menunggu 2 jam sebelum cek berikutnya...")
+            print(f"{waktu()} 💤 Menunggu 1 jam sebelum cek berikutnya...")
 
-            # 💡 selama nunggu 2 jam, tetap cek apakah dimatikan
+            # 💡 selama nunggu 1 jam, tetap cek apakah dimatikan
             for _ in range(1 * 60 * 60):  # 3600 detik
                 if not state["sg_merge"]["aktif"]:
                     print(f"{waktu()} ⏹️ Auto SG Merge dimatikan saat masa tunggu.")
@@ -500,16 +512,19 @@ async def loop_sg_merge(client, BOT_X, state):
         print(f"{waktu()} [ERROR LOOP SG MERGE ULTRA] {e}")
 
     finally:
+        # jaga-jaga kalau SGM mati pas lagi nge-pause mancing_x
+        if paused_mancing_x and "mancing_x" in state and "pause" in state["mancing_x"]:
+            state["mancing_x"]["pause"] = False
+            print(f"{waktu()} ▶️ Cleanup: Lanjut Auto Mancing X (loop SGM berhenti).")
+
         sg_merge_running = False
         print(f"{waktu()} ✅ Loop SG Merge berhenti sepenuhnya.")
+
 
 
 # === LOOP CMD BEBAS ===
 cb_loop_running = False
 cb_tasks = {}
-
-def waktu():
-    return datetime.now().strftime("[%H:%M:%S]")
 
 # === LOOP CUSTOM COMMAND (CB) ===
 async def loop_cb_handler(client, BOT_X, state, safe_send_x):
@@ -619,74 +634,136 @@ async def loop_masak_x():
     await client.send_message(PRIVATE_LOG_CHAT, f"✅ Masak selesai ({data['count']}x)")
     print(">> Loop Masak berhenti")
 
+
+
 # === LOOP MANCING ===
+# === LOOP MANCING (ALPHA) — MODEL SG MERGE ===
 async def loop_mancing():
     data = state["mancing"]
     lokasi = data.get("lokasi")
-    alat = data.get("alat", " Tarik Pancing")
+    alat = (data.get("alat") or "pancing").lower()
 
-    print(f">> Loop Mancing dimulai di {lokasi} pakai {alat.capitalize()} (Bot: {BOT_USERNAME})")
+    print(f"{waktu()} >> Loop Mancing Alpha dimulai di {lokasi} pakai {alat.capitalize()} (Bot: {BOT_USERNAME})")
 
-    # Kirim lokasi pertama kali
-    await safe_send(lokasi, BOT_USERNAME)
-    await asyncio.sleep(3)
-
-    while data["aktif"]:
-        # Kalau sedang di-pause, tunggu dulu
+    while data.get("aktif", False):
+        # Pause global (misal saat energi habis)
         while data.get("pause", False):
             await asyncio.sleep(5)
-        
-        now = asyncio.get_event_loop().time()
+        await asyncio.sleep(0.7)
 
-        # ⚠️ kalau tidak ada aktivitas selama 15 detik → kirim ulang lokasi
-        if now - data.get("last_click", 0) > 15:
-            print(f"⚠️ Tidak ada respons, kirim ulang lokasi: {lokasi}")
-            await safe_send(lokasi, BOT_USERNAME)
-            data["last_click"] = now
+        if not data.get("lokasi"):
+            print(f"{waktu()} ⚠️ Lokasi kosong di state['mancing'], hentikan loop.")
+            break
 
-        for _ in range(10):  
-            if not data["aktif"]:
-                break
-            await asyncio.sleep(0.5)
+        lokasi = data["lokasi"]
 
-    print(">> Loop Mancing berhenti")
-    await client.send_message(PRIVATE_LOG_CHAT, "🎣 Auto Mancing berhenti.")
+        # 1️⃣ Kirim lokasi (mulai mancing)
+        await safe_send(lokasi, BOT_USERNAME)
+        print(f"{waktu()} 🎣 [Alpha] Kirim lokasi: {lokasi}")
 
-# === LOOP MANCING X===
+        # 2️⃣ Tunggu balasan dari bot game (bisa pesan "mulai memancing" atau langsung yang ada tombol)
+        await tunggu_balasan(BOT_USERNAME, timeout=10)
+        await asyncio.sleep(1.1)
+
+        # 3️⃣ Baca pesan terakhir dan cari tombol "Tarik ..."
+        msg = await client.get_messages(BOT_USERNAME, limit=1)
+        if msg:
+            msg = msg[0]
+            if msg.buttons:
+                tombol_ditemukan = False
+                for row in msg.buttons:
+                    for btn in row:
+                        teks_btn = (btn.text or "").lower()
+                        if alat == "pancing" and ("tarik alat pancing" in teks_btn or "pull the rod" in teks_btn):
+                            tombol_ditemukan = True
+                            await human_sleep()
+                            asyncio.create_task(btn.click())
+                            print(f"{waktu()} ⚡ [Alpha] Klik 'Tarik Alat Pancing'")
+                            break
+                        elif alat == "jala" and ("tarik jala" in teks_btn or "pull the net" in teks_btn):
+                            tombol_ditemukan = True
+                            await human_sleep()
+                            asyncio.create_task(btn.click())
+                            print(f"{waktu()} ⚡ [Alpha] Klik 'Tarik Jala'")
+                            break
+                    if tombol_ditemukan:
+                        break
+
+                if not tombol_ditemukan:
+                    print(f"{waktu()} ⚠️ [Alpha] Tombol Tarik tidak ditemukan di pesan terakhir.")
+            else:
+                print(f"{waktu()} ⚠️ [Alpha] Tidak ada tombol di pesan terakhir.")
+        else:
+            print(f"{waktu()} ⚠️ [Alpha] Tidak ada pesan balasan yang bisa dibaca.")
+
+        # 4️⃣ Jeda kecil sebelum siklus berikutnya (biar nggak spam)
+        await asyncio.sleep(random.uniform(1.0, 1.5))
+
+    print(f"{waktu()} >> Loop Mancing Alpha berhenti")
+    await client.send_message(PRIVATE_LOG_CHAT, "🎣 Auto Mancing Alpha berhenti.")
+
+# === LOOP MANCING (X) — MODEL SG MERGE ===
 async def loop_mancing_x():
     data = state["mancing_x"]
     lokasi = data.get("lokasi")
-    alat = data.get("alat", "pancing").lower()
+    alat = (data.get("alat") or "pancing").lower()
 
+    print(f"{waktu()} >> Loop Mancing X dimulai di {lokasi} pakai {alat.capitalize()} (Bot: {BOT_X})")
 
-    print(f">> Loop Mancing dimulai di {lokasi} pakai {alat.capitalize()} (Bot: {BOT_X})")
-
-    # Kirim lokasi pertama kali
-    await safe_send_x(lokasi, BOT_X)
-    await asyncio.sleep(3)
-
-
-    while data["aktif"]:
-        # Kalau sedang di-pause, tunggu dulu
+    while data.get("aktif", False):
         while data.get("pause", False):
             await asyncio.sleep(5)
-        
-        now = asyncio.get_event_loop().time()
 
-        # ⚠️ kalau tidak ada aktivitas selama 15 detik → kirim ulang lokasi
-        if now - data.get("last_click", 0) > 15:
-            print(f"⚠️ Tidak ada respons, kirim ulang lokasi: {lokasi}")
-            await safe_send_x(lokasi, BOT_X)
-            data["last_click"] = now
+        if not data.get("lokasi"):
+            print(f"{waktu()} ⚠️ Lokasi kosong di state['mancing_x'], hentikan loop.")
+            break
 
-        for _ in range(10):  
-            if not data["aktif"]:
-                break
-            await asyncio.sleep(0.5)
+        lokasi = data["lokasi"]
 
+        # 1️⃣ Kirim lokasi (mulai mancing)
+        await safe_send_x(lokasi, BOT_X)
+        print(f"{waktu()} 🎣 [X] Kirim lokasi: {lokasi}")
 
-    print(">> Loop Mancing berhenti")
-    await client.send_message(PRIVATE_LOG_CHAT, "🎣 Auto Mancing berhenti.")
+        # 2️⃣ Tunggu balasan dari bot game
+        await tunggu_balasan(BOT_X, timeout=10)
+        await asyncio.sleep(1.1)
+
+        # 3️⃣ Baca pesan terakhir dan cari tombol "Tarik ..."
+        msg = await client.get_messages(BOT_X, limit=1)
+        if msg:
+            msg = msg[0]
+            if msg.buttons:
+                tombol_ditemukan = False
+                for row in msg.buttons:
+                    for btn in row:
+                        teks_btn = (btn.text or "").lower()
+                        if alat == "pancing" and ("tarik alat pancing" in teks_btn or "pull the rod" in teks_btn):
+                            tombol_ditemukan = True
+                            await human_sleep()
+                            asyncio.create_task(btn.click())
+                            print(f"{waktu()} ⚡ [X] Klik 'Tarik Alat Pancing'")
+                            break
+                        elif alat == "jala" and ("tarik jala" in teks_btn or "pull the net" in teks_btn):
+                            tombol_ditemukan = True
+                            await human_sleep()
+                            asyncio.create_task(btn.click())
+                            print(f"{waktu()} ⚡ [X] Klik 'Tarik Jala'")
+                            break
+                    if tombol_ditemukan:
+                        break
+
+                if not tombol_ditemukan:
+                    print(f"{waktu()} ⚠️ [X] Tombol Tarik tidak ditemukan di pesan terakhir.")
+            else:
+                print(f"{waktu()} ⚠️ [X] Tidak ada tombol di pesan terakhir.")
+        else:
+            print(f"{waktu()} ⚠️ [X] Tidak ada pesan balasan yang bisa dibaca.")
+
+        # 4️⃣ Jeda kecil sebelum siklus berikutnya
+        await asyncio.sleep(random.uniform(1.0, 1.3))
+
+    print(f"{waktu()} >> Loop Mancing X berhenti")
+    await client.send_message(PRIVATE_LOG_CHAT, "🎣 Auto Mancing X berhenti.")
 
 
 # === LOOP MACUL (PRIBADI / GUILD / GLOBAL) ===
@@ -959,7 +1036,7 @@ async def cmd_owner(event):
     if lmsg in ("sgm on", "/sgm on"):
         if not state["sg_merge"]["aktif"]:
             state["sg_merge"]["aktif"] = True
-            await event.reply("🌿 Auto SG Merge diaktifkan (setiap 2 jam).")
+            await event.reply("🌿 Auto SG Merge diaktifkan (setiap 1 jam).")
             asyncio.create_task(loop_sg_merge(client, BOT_X, state))
         else:
             await event.reply("❗ Auto SG Merge sudah aktif.")
@@ -1232,58 +1309,6 @@ async def cmd_owner(event):
 
 
 # ---------------- BOT HANDLER ----------------
-
-# === EVENT HANDLER MANCING ===
-@client.on(events.NewMessage(incoming=True, chats=BOT_USERNAME))
-async def handle_mancing_final(event):
-    msg = (event.raw_text or "").lower()
-    data = state.get("mancing", {})
-    if not data.get("aktif") or not data.get("lokasi"):
-        return
-
-    lokasi = data["lokasi"]
-    alat = data.get("alat", "pancing").lower()
-
-    # ✅ Klik tombol "Tarik" langsung kalau ada
-    if event.buttons:
-        for row in event.buttons:
-            for button in row:
-                teks = (button.text or "").lower()
-                if alat == "pancing" and ("tarik alat pancing" in teks or "pull the rod" in teks):
-                    await human_sleep()
-                    await button.click()
-                    data["last_click"] = asyncio.get_event_loop().time()
-                    print("🎣 Klik 'Tarik Alat Pancing'")
-                    return
-                elif alat == "jala" and ("tarik jala" in teks or "pull the net" in teks):
-                    await human_sleep()
-                    await button.click()
-                    data["last_click"] = asyncio.get_event_loop().time()
-                    print("🎣 Klik 'Tarik Jala'")
-                    return
-                                
-
-    # 🪝 Indikator memancing (hasil tangkap, skill, dsb)
-    if any(x in msg for x in [
-        "memancing", "fishing skill", "kamu mendapatkan", "berhasil menangkap",
-        "energi berhasil dipulihkan", "restored", "kamu tidak sedang memancing"
-    ]):
-        await human_sleep(1, 2)
-        await safe_send(lokasi, BOT_USERNAME)
-        print(f"↻ Lanjut mancing di {lokasi}")
-
-
-# === EVENT HANDLER SG MERGE ===
-@client.on(events.NewMessage(incoming=True, chats=BOT_USERNAME))
-async def handle_sg_merge(event):
-    msg = (event.raw_text or "").lower()
-
-    # === TRIGGER AUTO MERGE KERANJANG ===
-    if "keranjang buah tidak mencukupi" in msg:
-        print("⚠️ Keranjang penuh! Jalankan loop auto merge SkyGarden...")
-        asyncio.create_task(loop_sg_merge(client, BOT_X, state))
-  
-
 # === EVENT HANDLER RESTORE ===
 @client.on(events.NewMessage(incoming=True, chats=BOT_USERNAME))
 async def handle_restore(event):
@@ -1314,48 +1339,6 @@ async def handle_restore(event):
             if isinstance(v, dict) and "pause" in v:
                 v["pause"] = False
 
-
-
-
-# === BOT 2 HANDLER (untuk Mancing X) ===
-@client.on(events.NewMessage(incoming=True, chats=BOT_X))
-async def handle_mancing_x_final(event):
-    msg = (event.raw_text or "").lower()
-    data = state.get("mancing_x", {})
-    if not data.get("aktif") or not data.get("lokasi"):
-        return
-
-    lokasi = data["lokasi"]
-    alat = data.get("alat", "pancing").lower()
-
-    # ✅ Klik tombol "Tarik" langsung kalau ada
-    if event.buttons:
-        for row in event.buttons:
-            for button in row:
-                teks = (button.text or "").lower()
-                if alat == "pancing" and ("tarik alat pancing" in teks or "pull the rod" in teks):
-                    await human_sleep()
-                    await button.click()
-                    data["last_click"] = asyncio.get_event_loop().time()
-                    print("🎣 Klik 'Tarik Alat Pancing'")
-                    return
-                elif alat == "jala" and ("tarik jala" in teks or "pull the net" in teks):
-                    await human_sleep()
-                    await button.click()
-                    data["last_click"] = asyncio.get_event_loop().time()
-                    print("🎣 Klik 'Tarik Jala'")
-                    return
-                                
-
-    # 🪝 Indikator memancing (hasil tangkap, skill, dsb)
-    if any(x in msg for x in [
-        "memancing", "fishing skill", "kamu mendapatkan", "berhasil menangkap",
-        "energi berhasil dipulihkan", "restored", "kamu tidak sedang memancing"
-    ]):
-        await human_sleep(1, 2)
-        await safe_send_x(lokasi, BOT_X)
-        print(f"↻ Lanjut mancing di {lokasi}")
-
 # ==== HANDLER BOT X SG UPGRADE ====
 @client.on(events.NewMessage(incoming=True, chats=BOT_X))
 async def handle_sg_upgrade_x(event):
@@ -1365,7 +1348,7 @@ async def handle_sg_upgrade_x(event):
         return
 
     # Klik tombol confirm hanya jika pesan berhubungan dengan upgrade
-    if "Upgrade keranjang buah" in msg or "menggunakan 5" in msg:
+    if "upgrade keranjang buah" in msg or "menggunakan 5" in msg:
         if event.buttons:
             for row in event.buttons:
                 for btn in row:
@@ -1375,7 +1358,7 @@ async def handle_sg_upgrade_x(event):
                         return
 
     # Jika upgrade berhasil
-    if "Berhasil mengupgrade keranjang" in msg or "keranjang buah menjadi" in msg or "/sg_KeranjangBuah" in msg:
+    if "berhasil mengupgrade keranjang" in msg or "keranjang buah menjadi" in msg or "/sg_keranjangbuah" in msg:
         await asyncio.sleep(1.5)
         await safe_send_x("/sg_upgrade", BOT_X)
         print("✅ SG Upgrade berhasil → lanjut upgrade")
