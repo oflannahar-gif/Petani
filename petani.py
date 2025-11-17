@@ -351,6 +351,13 @@ async def loop_sg_merge(client, BOT_X, state):
             if not state["sg_merge"]["aktif"]:
                 print(f"{waktu()} ⏹️ Auto SG Merge dimatikan secara manual.")
                 break
+            # 🔸 PAUSE MANCING X DI AWAL SIKLUS
+            if (not paused_mancing_x 
+                and "mancing_x" in state 
+                and state["mancing_x"].get("aktif")):
+                state["mancing_x"]["pause"] = True
+                paused_mancing_x = True
+                print(f"{waktu()} ⏸ Pause Auto Mancing X selama 1 siklus SG Merge.")
 
             print(f"{waktu()} 🔁 Mengecek SkyGarden...")
 
@@ -362,7 +369,7 @@ async def loop_sg_merge(client, BOT_X, state):
             ada_yang_dimerge = False  # 🔹 penanda merge aktif
 
             # ambil sampai 5 pesan terakhir
-            async for event in client.iter_messages(BOT_X, limit=5):
+            async for event in client.iter_messages(BOT_X, limit=10):
                 text = event.raw_text or ""
                 if "/sg_merge_" not in text:
                     continue
@@ -398,15 +405,7 @@ async def loop_sg_merge(client, BOT_X, state):
                     # 🔢 Hitung berapa kali maksimal bisa merge 15 buah
                     max_merge = jumlah // 15
                     ada_yang_dimerge = True
-
-                    # 🔸 PERTAMA KALI BENERAN MERGE → PAUSE MANCING X
-                    if (not paused_mancing_x 
-                        and "mancing_x" in state 
-                        and state["mancing_x"].get("aktif")):
-                        state["mancing_x"]["pause"] = True
-                        paused_mancing_x = True
-                        print(f"{waktu()} ⏸ Pause Auto Mancing X selama SG Merge berjalan.")
-
+                    
                     print(f"{waktu()} 🍇 Mulai merge {cmd} — total buah {jumlah}, rencana merge {max_merge}x")
 
                     # 🔁 Lakukan merge sebanyak max_merge kali
