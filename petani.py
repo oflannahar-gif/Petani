@@ -191,8 +191,6 @@ async def loop_ternakkhusus():
         await asyncio.sleep(2)
         await safe_send("/pelihara_AnakArwana_84")
         await asyncio.sleep(2)
-        await safe_send("/beriMakanx")
-        await asyncio.sleep(2)
         await safe_send("/ambilHewan")
         await asyncio.sleep(2)
         for _ in range(10):  
@@ -368,7 +366,7 @@ async def loop_sg_merge(client, BOT_X, state):
             ada_buah_untuk_merge = False
             ada_yang_dimerge = False  # 🔹 penanda merge aktif
 
-            # ambil sampai 5 pesan terakhir
+            # ambil sampai 10 pesan terakhir
             async for event in client.iter_messages(BOT_X, limit=10):
                 text = event.raw_text or ""
                 if "/sg_merge_" not in text:
@@ -518,7 +516,6 @@ async def loop_sg_merge(client, BOT_X, state):
 
         sg_merge_running = False
         print(f"{waktu()} ✅ Loop SG Merge berhenti sepenuhnya.")
-
 
 
 # === LOOP CMD BEBAS ===
