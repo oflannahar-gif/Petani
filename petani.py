@@ -6,7 +6,7 @@ import random
 import logging
 import datetime
 import re
-
+import time
 
 from dotenv import load_dotenv
 from telethon import TelegramClient, events
@@ -79,7 +79,7 @@ async def message_worker():
         msg, dest = await message_queue.get()
         try:
             await client.send_message(dest, msg)
-            print(f"[SEND] → {dest}: {msg}")
+            print(f"{waktu()} [SEND] → {dest}: {msg}")
         except Exception as e:
             print(f"[!] Gagal kirim {msg} ke {dest}: {e}")
         await asyncio.sleep(2)
@@ -170,7 +170,7 @@ async def loop_maling():
         data["index"] = (data["index"] + 1) % len(lokasi_list)
 
         await safe_send_x(f"{lokasi}")
-        print(f"[SEND] maling {lokasi}")
+        print(f"{waktu()} [SEND] maling {lokasi}")
         await asyncio.sleep(data["interval"])
         for _ in range(10):  
             if not data["aktif"]:
@@ -275,7 +275,7 @@ async def tunggu_balasan(bot_username, timeout=10):
     """
     Menunggu pesan baru dari bot dalam X detik.
     """
-    start = datetime.now().timestamp()
+    start = time.time()
 
     last_id = None
     # Ambil ID terbaru dulu
@@ -290,7 +290,7 @@ async def tunggu_balasan(bot_username, timeout=10):
             if msg[0].id != last_id:
                 return msg[0]  # ada pesan baru
 
-        if datetime.now().timestamp() - start > timeout:
+        if time.time() - start > timeout:
             return None
 
 sg_merge_running = False
@@ -358,7 +358,10 @@ async def loop_sg_merge(client, BOT_X, state):
                 print(f"{waktu()} ⏸ Pause Auto Mancing X selama 1 siklus SG Merge.")
 
             print(f"{waktu()} 🔁 Mengecek SkyGarden...")
-
+            
+            await asyncio.sleep(5)
+            await safe_send_x("/sg_gabung")
+            await tunggu_balasan(BOT_X)
             await safe_send_x("/sg_gabung")
             print(f"{waktu()} ⏳ Menunggu balasan /sg_gabung ...")
             await tunggu_balasan(BOT_X)
