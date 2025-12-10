@@ -96,7 +96,7 @@ state = {
     "macul": {"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180, "target": BOT_USERNAME, "pause": False},
     "macul_guild": {"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180, "pause": False},
     "macul_global": {"aktif": False, "tanaman": None, "jumlah": 0, "durasi": 180, "pause": False},
-    "skygarden": {"aktif": False, "interval": 420, "pause": False},
+    "skygarden": {"aktif": False, "interval": 120, "pause": False},
     "sg_merge": {"aktif": False},
     "cb": {"aktif": False},
     "sg_upgrade": {"aktif": False},
@@ -338,7 +338,7 @@ async def loop_sg_merge(client, BOT_X, state):
         return
 
     sg_merge_running = True
-    print(f"{waktu()} 🌿 Auto SG Merge dimulai (setiap 1 jam).")
+    print(f"{waktu()} 🌿 Auto SG Merge dimulai (setiap 1/2 jam).")
 
     # penanda apakah SGM pernah nge-pause mancing_x
     paused_mancing_x = False
@@ -484,7 +484,7 @@ async def loop_sg_merge(client, BOT_X, state):
                     print(f"{waktu()} 🌾 Semua buah sudah habis — tidak ada yang bisa digabung.")
 
             elif not ada_yang_dimerge:
-                print(f"{waktu()} ✅ Tidak ada buah dengan jumlah >= 15 — skip dan tunggu 1 jam.")
+                print(f"{waktu()} ✅ Tidak ada buah dengan jumlah >= 15 — skip dan tunggu 1/2 jam.")
 
             # 🔸 SAMPAI DI SINI, SIKLUS MERGE BERES → LANJUTKAN MANCING X KALAU TADI DIPAUSe
             if paused_mancing_x:
@@ -499,7 +499,7 @@ async def loop_sg_merge(client, BOT_X, state):
             print(f"{waktu()} 💤 Menunggu 1 jam sebelum cek berikutnya...")
 
             # 💡 selama nunggu 1 jam, tetap cek apakah dimatikan
-            for _ in range(1 * 60 * 60):  # 3600 detik
+            for _ in range(1 * 60 * 30):  # 1800 detik
                 if not state["sg_merge"]["aktif"]:
                     print(f"{waktu()} ⏹️ Auto SG Merge dimatikan saat masa tunggu.")
                     raise asyncio.CancelledError
