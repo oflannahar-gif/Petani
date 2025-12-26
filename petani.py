@@ -398,13 +398,13 @@ async def loop_sg_merge(client, BOT_X, state):
                         print(f"{waktu()} ⛔ {cmd} dilewati (LEVEL {level_debug} terlalu tinggi)")
                         continue
 
-                    # Filter jumlah < 15
-                    if jumlah < 15:
-                        print(f"{waktu()} ⏭️ {cmd} dilewati (jumlah {jumlah} < 15)")
+                    # Filter jumlah < 5
+                    if jumlah < 5:
+                        print(f"{waktu()} ⏭️ {cmd} dilewati (jumlah {jumlah} < 5)")
                         continue
 
-                    # 🔢 Hitung berapa kali maksimal bisa merge 15 buah
-                    max_merge = jumlah // 15
+                    # 🔢 Hitung berapa kali maksimal bisa merge 5 buah
+                    max_merge = jumlah // 5
                     ada_yang_dimerge = True
                     
                     print(f"{waktu()} 🍇 Mulai merge {cmd} — total buah {jumlah}, rencana merge {max_merge}x")
@@ -423,7 +423,7 @@ async def loop_sg_merge(client, BOT_X, state):
                         await tunggu_balasan(BOT_X)
                         await asyncio.sleep(1.1)
 
-                        # baca pesan terakhir dan klik tombol Gabung 15 bila ada
+                        # baca pesan terakhir dan klik tombol Gabung 5 bila ada
                         msg = await client.get_messages(BOT_X, limit=1)
                         if msg:
                             msg = msg[0]
@@ -431,10 +431,10 @@ async def loop_sg_merge(client, BOT_X, state):
                                 tombol_ditemukan = False
                                 for row in msg.buttons:
                                     for btn in row:
-                                        if "Gabung 15" in (btn.text or ""):
+                                        if "Gabung 5" in (btn.text or ""):
                                             tombol_ditemukan = True
                                             print(
-                                                f"{waktu()} ⚡ Klik 'Gabung 15' ({cmd}) — iterasi "
+                                                f"{waktu()} ⚡ Klik 'Gabung ' ({cmd}) — iterasi "
                                                 f"{i+1}/{max_merge}"
                                             )
                                             # klik tombol asinkron
@@ -445,7 +445,7 @@ async def loop_sg_merge(client, BOT_X, state):
 
                                 if not tombol_ditemukan:
                                     print(
-                                        f"{waktu()} ⚠️ [{i+1}/{max_merge}] Tombol 'Gabung 15' "
+                                        f"{waktu()} ⚠️ [{i+1}/{max_merge}] Tombol 'Gabung 5' "
                                         f"tidak ditemukan di pesan terakhir."
                                     )
                             else:
@@ -484,7 +484,7 @@ async def loop_sg_merge(client, BOT_X, state):
                     print(f"{waktu()} 🌾 Semua buah sudah habis — tidak ada yang bisa digabung.")
 
             elif not ada_yang_dimerge:
-                print(f"{waktu()} ✅ Tidak ada buah dengan jumlah >= 15 — skip dan tunggu 1/2 jam.")
+                print(f"{waktu()} ✅ Tidak ada buah dengan jumlah >= 5 — skip dan tunggu 1/2 jam.")
 
             # 🔸 SAMPAI DI SINI, SIKLUS MERGE BERES → LANJUTKAN MANCING X KALAU TADI DIPAUSe
             if paused_mancing_x:
