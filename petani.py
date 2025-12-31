@@ -20,6 +20,7 @@ API_HASH = os.getenv("API_HASH") or ""
 PHONE = os.getenv("PHONE") or ""
 BOT_USERNAME = (os.getenv("BOT_USERNAME") or "KampungMaifamBot").lstrip('@')
 BOT_X = (os.getenv("BOT_X") or "KampungMaifamXBot").lstrip('@')
+BOT_X4 = (os.getenv("BOT_X4") or "KampungMaifamX4Bot").lstrip('@')
 GROUP_DANAU = "@danaudalamhutan"
 OWNER_ID = int(os.getenv("OWNER_ID") or 0)
 GLOBAL_GROUP = "@KampungMaifamGlobal"
@@ -54,6 +55,12 @@ async def safe_send_x(msg, to=None):
     if to == "me":
         to = PRIVATE_LOG_CHAT
     await message_queue.put((msg, to or BOT_X))
+
+# === SAFE SEND Bot X4 ===
+async def safe_send_x4(msg, to=None):
+    if to == "me":
+        to = PRIVATE_LOG_CHAT
+    await message_queue.put((msg, to or BOT_X4))
 
 # === SAFE SEND Grup Danau ===
 async def safe_send_d(msg, to=None):
@@ -189,9 +196,9 @@ async def loop_ternakkhusus():
         while data.get("pause", False):
             await asyncio.sleep(5)
         await asyncio.sleep(2)
-        await safe_send("/pelihara_AnakArwana_84")
+        await safe_send_x4("/pelihara_AnakArwana_84")
         await asyncio.sleep(2)
-        await safe_send("/ambilHewan")
+        await safe_send_x4("/ambilHewan")
         await asyncio.sleep(2)
         for _ in range(10):  
             if not data["aktif"]:
