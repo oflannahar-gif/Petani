@@ -196,7 +196,7 @@ async def loop_ternakkhusus():
         while data.get("pause", False):
             await asyncio.sleep(5)
         await asyncio.sleep(2)
-        await safe_send_x4("/pelihara_AnakArwana_84")
+        await safe_send_x4("/pelihara_AnakArwana_85")
         await asyncio.sleep(2)
         await safe_send_x4("/ambilHewan")
         await asyncio.sleep(2)
