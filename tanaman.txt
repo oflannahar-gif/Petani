@@ -1,7 +1,7 @@
 Wortel=190
 Cabai=730
 Tomat=730
-Kentang=250
+Kentang=15
 Pisang=3010
 Mentimun=610
 Strawberry=310
